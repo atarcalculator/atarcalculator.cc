@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VCE (Victoria) ATAR Calculator</title>
+</head>
+<body>
+<!-- wp:html -->
+<div class="vce-calc" data-vce-calc>
+  <style>
+  .vce-calc{--vc-ink:#17202a;--vc-mut:#5b6b7c;--vc-line:#dfe5ec;--vc-accent:#1b3a6b;--vc-bg:#f7f9fc;font-family:inherit;color:var(--vc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .vce-calc *{box-sizing:border-box}
+  .vce-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .vce-calc .vc-row{display:grid;grid-template-columns:1fr 100px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .vce-calc .vc-row input{width:100%;padding:9px 10px;border:1px solid var(--vc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--vc-ink)}
+  .vce-calc .vc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--vc-mut);font-weight:600}
+  .vce-calc .vc-del{background:none;border:1px solid var(--vc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--vc-mut);font-size:1rem;line-height:1}
+  .vce-calc .vc-btn{background:var(--vc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .vce-calc .vc-btn.ghost{background:none;color:var(--vc-accent);border:1px solid var(--vc-line);font-weight:500}
+  .vce-calc .vc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .vce-calc .vc-hint{font-size:.83rem;color:var(--vc-mut);margin:4px 0 14px}
+  .vce-calc .vc-out{margin-top:22px;padding:18px;background:var(--vc-bg);border:1px solid var(--vc-line);border-radius:8px}
+  .vce-calc .vc-out[hidden]{display:none}
+  .vce-calc .vc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .vce-calc .vc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:700;margin-left:10px}
+  .vce-calc .vc-agg{color:var(--vc-mut);font-size:.95rem;margin-top:4px}
+  .vce-calc .vc-work{margin-top:16px;border-top:1px solid var(--vc-line);padding-top:14px}
+  .vce-calc .vc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .vce-calc .vc-work th,.vce-calc .vc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--vc-line)}
+  .vce-calc .vc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--vc-mut)}
+  .vce-calc .vc-work td:last-child,.vce-calc .vc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .vce-calc .vc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:600;margin-left:6px}
+  .vce-calc .vc-tag.eng{background:#e3f2e8;color:#1d6b3a}
+  .vce-calc .vc-tag.inc{background:#fdf0e3;color:#8a5a1f}
+  .vce-calc .vc-tag.drop{background:#eceff3;color:#5b6b7c}
+  .vce-calc .vc-note{font-size:.85rem;color:var(--vc-mut);margin-top:12px}
+  .vce-calc .vc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  .vce-calc .vc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  .vce-shortdisc{max-width:760px;margin:14px auto 0;padding:11px 14px;background:#fff6e5;border:1px solid #f0d9a8;border-radius:6px;font-size:.85rem;color:#7a5600}
+  @media(max-width:560px){.vce-calc .vc-row{grid-template-columns:1fr 84px 32px;gap:6px}.vce-calc .vc-row input{padding:8px 7px;font-size:.86rem}.vce-calc .vc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="vc-row vc-head"><span>VCE study</span><span>Study score</span><span></span></div>
+  <div class="vc-list"></div>
+  <p class="vc-hint">Enter your <strong>study score</strong> (0 to 50) for each Unit 3/4 study. Your aggregate uses your English-group study plus your best 3 others (the primary four), then 10% each of your next two best as increments &mdash; up to 6 studies in total.</p>
+  <datalist id="vc-studies"></datalist>
+  <div class="vc-actions">
+    <button type="button" class="vc-btn ghost vc-add">+ Add study</button>
+    <button type="button" class="vc-btn vc-go">Estimate my ATAR</button>
+  </div>
+  <div class="vc-err"></div>
+
+  <div class="vc-out" hidden>
+    <div class="vc-atar"></div>
+    <div class="vc-agg"></div>
+    <div class="vc-work">
+      <h3 style="margin-top:0">How this estimate was built</h3>
+      <table><thead><tr><th>Study</th><th>Role</th><th>Scaled score</th></tr></thead><tbody class="vc-work-body"></tbody></table>
+      <p class="vc-note vc-work-note"></p>
+    </div>
+  </div>
+
+
+  <script>
+  (function(){
+    function table(){
+      var all = window.VCE_SCALING_TABLE || {};
+      var y = window.VCE_SCALING_YEAR || '2025';
+      return all[y] || all[Object.keys(all)[0]] || null;
+    }
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function interp(x, xs, ys){
+      if(x <= xs[0]) return ys[0];
+      if(x >= xs[xs.length-1]) return ys[ys.length-1];
+      for(var i=0;i<xs.length-1;i++){
+        if(x <= xs[i+1]){
+          var t = (x - xs[i]) / (xs[i+1] - xs[i]);
+          return ys[i] + t * (ys[i+1] - ys[i]);
+        }
+      }
+      return ys[ys.length-1];
+    }
+
+    var NORM_INDEX = null;
+    function norm(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+    function subjectInfo(name){
+      var t = table();
+      if(!t) return null;
+      if(!t.subjects) return null;
+      if(t.subjects[name]) return t.subjects[name];
+      if(!NORM_INDEX){
+        NORM_INDEX = {};
+        Object.keys(t.subjects).forEach(function(k){ NORM_INDEX[norm(k)] = t.subjects[k]; });
+      }
+      return NORM_INDEX[norm(name)] || null;
+    }
+
+    function scaledScore(name, studyScore){
+      var s = subjectInfo(name);
+      if(!s) return null;
+      if(!s.raw) return null;
+      return interp(studyScore, s.raw, s.scaled);
+    }
+
+    function atarFor(agg){
+      var t = table();
+      var a = (t || {}).aggregate_to_atar;
+      if(!a) return null;
+      var rows = a.table;
+      if(agg < rows[0][1]) return {label:'less than 30', value:null};
+      for(var i=0;i<rows.length;i++){
+        if(agg < rows[i][1]) continue;
+        if(agg > rows[i][2]) continue;
+        return {label:rows[i][0].toFixed(2), value:rows[i][0]};
+      }
+      return {label:a.cap_atar.toFixed(2), value:a.cap_atar};
+    }
+
+    function init(root){
+      if(!root || root.getAttribute('data-vc-init')) return;
+      root.setAttribute('data-vc-init','1');
+
+      var list = root.querySelector('.vc-list');
+      var errEl = root.querySelector('.vc-err');
+      var out = root.querySelector('.vc-out');
+      var dl = root.querySelector('#vc-studies');
+
+      var t = table();
+      if(t){ if(t.subjects){
+        Object.keys(t.subjects).sort().forEach(function(name){
+          var o = document.createElement('option');
+          o.value = name; dl.appendChild(o);
+        });
+      } }
+
+      function addRow(preset){
+        var d = document.createElement('div');
+        d.className = 'vc-row';
+        d.innerHTML =
+          '<input type="text" list="vc-studies" placeholder="e.g. English">' +
+          '<input type="number" min="0" max="50" step="0.1" placeholder="0-50">' +
+          '<button type="button" class="vc-del" aria-label="Remove">&times;</button>';
+        if(preset){ d.children[0].value = preset; }
+        d.children[2].addEventListener('click', function(){
+          if(list.children.length > 1){ d.parentNode.removeChild(d); }
+        });
+        list.appendChild(d);
+      }
+      addRow('English');
+      for(var i=0;i<5;i++) addRow();
+      root.querySelector('.vc-add').addEventListener('click', function(){ addRow(); });
+
+      root.querySelector('.vc-go').addEventListener('click', function(){
+        errEl.textContent = '';
+        out.hidden = true;
+
+        var entries = [];
+        var unknown = [];
+        Array.prototype.forEach.call(list.children, function(r){
+          var name = r.children[0].value.trim();
+          var score = r.children[1].value.trim();
+          if(name === '' || score === '') return;
+          var s = subjectInfo(name);
+          if(!s){ unknown.push(name); return; }
+          var sc = scaledScore(name, parseFloat(score));
+          if(sc === null) return;
+          entries.push({name:name, rawName:name, scaled:sc, group:s.group || null});
+        });
+
+        if(unknown.length){
+          errEl.textContent = 'Not recognised: ' + unknown.join(', ') + '. Pick a study from the list.';
+          return;
+        }
+        if(entries.length < 4){
+          errEl.textContent = 'Enter at least 4 studies, including one English-group study (English, EAL, Literature or English Language).';
+          return;
+        }
+
+        var englishEntries = entries.filter(function(e){ return e.group === 'english'; });
+        var others = entries.filter(function(e){ return e.group !== 'english'; });
+
+        if(englishEntries.length === 0){
+          errEl.textContent = 'Your primary four must include an English-group study (English, EAL, Literature or English Language).';
+          return;
+        }
+
+        englishEntries.sort(function(a,b){ return b.scaled - a.scaled; });
+        var english = englishEntries[0];
+        var droppedEnglish = englishEntries.slice(1);
+
+        others.sort(function(a,b){ return b.scaled - a.scaled; });
+
+        var groupCount = {};
+        if(english.group){ groupCount[english.group] = 1; }
+
+        var primaryThree = [];
+        var remaining = [];
+        others.forEach(function(e){
+          if(primaryThree.length >= 3){ remaining.push(e); return; }
+          var g = e.group;
+          if(g){ if(groupCount[g] >= 2){ remaining.push(e); return; } }
+          primaryThree.push(e);
+          if(g){ groupCount[g] = (groupCount[g] || 0) + 1; }
+        });
+
+        var increments = [];
+        var dropped = droppedEnglish.map(function(e){ e._dropReason = 'second English-group study'; return e; });
+        remaining.forEach(function(e){
+          if(increments.length >= 2){ dropped.push(e); return; }
+          var g = e.group;
+          if(g){ if(groupCount[g] >= 3){ e._dropReason = 'grouping limit (max 3 per study area)'; dropped.push(e); return; } }
+          increments.push(e);
+          if(g){ groupCount[g] = (groupCount[g] || 0) + 1; }
+        });
+
+        var primaryFour = [english].concat(primaryThree);
+        var primarySum = primaryFour.reduce(function(s,e){ return s + e.scaled; }, 0);
+        var incSum = increments.reduce(function(s,e){ return s + e.scaled; }, 0);
+        var aggregate = primarySum + 0.10 * incSum;
+
+        var result = atarFor(aggregate);
+
+        out.hidden = false;
+        var atarEl = out.querySelector('.vc-atar');
+        var aggEl = out.querySelector('.vc-agg');
+        var atarLabel = result ? result.label : 'n/a';
+        atarEl.innerHTML = atarLabel + '<span class="vc-est">Estimate</span>';
+        aggEl.textContent = 'Scaled aggregate: ' + aggregate.toFixed(2);
+
+        var body = out.querySelector('.vc-work-body');
+        body.innerHTML = '';
+        function row(e, role, cls){
+          var tr = document.createElement('tr');
+          var tag = '<span class="vc-tag ' + cls + '">' + role + '</span>';
+          tr.innerHTML = '<td>' + esc(e.name) + tag + '</td><td></td><td>' + e.scaled.toFixed(2) + '</td>';
+          body.appendChild(tr);
+        }
+        row(english, 'Primary (English)', 'eng');
+        primaryThree.forEach(function(e){ row(e, 'Primary', ''); });
+        increments.forEach(function(e){ row(e, '10% increment', 'inc'); });
+        dropped.forEach(function(e){
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td style="color:#5b6b7c">' + esc(e.name) + '<span class="vc-tag drop">Not counted</span></td><td></td><td style="color:#5b6b7c">' + e.scaled.toFixed(2) + '</td>';
+          body.appendChild(tr);
+        });
+
+        var note = 'Primary four: ' + primarySum.toFixed(2) + '. Increments (10% each): ' + (0.10*incSum).toFixed(2) + '. ';
+        if(dropped.length){
+          note += dropped.length + ' stud' + (dropped.length===1?'y':'ies') + ' not counted (6-result cap or study-area grouping limit, max 2 in the primary four / 3 overall per grouping).';
+        }
+        out.querySelector('.vc-work-note').textContent = note;
+      });
+    }
+
+    document.querySelectorAll('[data-vce-calc]').forEach(init);
+  })();
+  </script>
+</div>
+<!-- /wp:html -->
+</body>
+</html>

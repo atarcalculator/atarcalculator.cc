@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAT to ATAR (equivalence estimate) ATAR Calculator</title>
+</head>
+<body>
+<!--
+  SAT to ATAR Calculator (unofficial estimate)
+  No literal ampersand characters anywhere below (WordPress mangles them inside <script>) —
+  use nested if statements instead of double-ampersand, and the word "and" instead of a literal ampersand in text.
+  No backslash escapes in strings — use literal UTF-8 characters.
+  Data source: College Board, "SAT Nationally Representative and User Percentiles"
+  (research.collegeboard.org/reports/sat-suite/understanding-scores/sat), US 11th/12th
+  grade nationally representative sample, scores in 10-point steps, 400-1600.
+-->
+<script>
+window.SAT_ATAR_PERCENTILE_TABLE = {
+  "source": "College Board, SAT Nationally Representative Percentiles (US 11th/12th grade sample)",
+  "source_url": "https://research.collegeboard.org/reports/sat-suite/understanding-scores/sat",
+  "scores":     [400,410,420,430,440,450,460,470,480,490,500,510,520,530,540,550,560,570,580,590,600,610,620,630,640,650,660,670,680,690,700,710,720,730,740,750,760,770,780,790,800,810,820,830,840,850,860,870,880,890,900,910,920,930,940,950,960,970,980,990,1000,1010,1020,1030,1040,1050,1060,1070,1080,1090,1100,1110,1120,1130,1140,1150,1160,1170,1180,1190,1200,1210,1220,1230,1240,1250,1260,1270,1280,1290,1300,1310,1320,1330,1340,1350,1360,1370,1380,1390,1400,1410,1420,1430,1440,1450,1460,1470,1480,1490,1500,1510,1520,1530,1540,1550,1560,1570,1580,1590,1600],
+  "percentile": [0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5,1,1,1,1,2,2,3,4,4,5,6,7,8,9,10,11,13,14,16,17,18,20,21,23,24,26,27,29,31,33,35,36,38,40,42,44,46,48,50,52,54,56,58,60,61,63,65,67,69,70,71,73,74,76,77,78,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,94,95,96,96,97,97,97,98,98,98,99,99,99,99,99,99,99,99,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.5,99.9]
+};
+</script>
+
+<div class="sat-calc" data-sat-calc>
+  <style>
+  .sat-calc{--sc-ink:#17202a;--sc-mut:#5b6b7c;--sc-line:#dfe5ec;--sc-accent:#8a1f3c;--sc-bg:#f7f9fc;font-family:inherit;color:var(--sc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .sat-calc *{box-sizing:border-box}
+  .sat-calc .sc-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .sat-calc .sc-tab{flex:1;padding:10px 8px;border:1px solid var(--sc-line);border-radius:6px;background:#fff;color:var(--sc-mut);font-weight:600;font-size:.9rem;cursor:pointer;text-align:center}
+  .sat-calc .sc-tab.active{background:var(--sc-accent);color:#fff;border-color:var(--sc-accent)}
+  .sat-calc .sc-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .sat-calc .sc-row label{font-size:.85rem;color:var(--sc-mut);min-width:150px}
+  .sat-calc .sc-row input{flex:1;padding:10px 12px;border:1px solid var(--sc-line);border-radius:6px;font-size:1rem;font-family:inherit}
+  .sat-calc .sc-hint{font-size:.83rem;color:var(--sc-mut);margin:2px 0 14px}
+  .sat-calc .sc-btn{background:var(--sc-accent);color:#fff;border:0;border-radius:6px;padding:11px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .sat-calc .sc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  .sat-calc .sc-out{margin-top:20px;padding:18px;background:var(--sc-bg);border:1px solid var(--sc-line);border-radius:8px}
+  .sat-calc .sc-out[hidden]{display:none}
+  .sat-calc .sc-atar{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .sat-calc .sc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#fbe9ef;color:#8a1f3c;font-weight:700;margin-left:10px}
+  .sat-calc .sc-sub{color:var(--sc-mut);font-size:.95rem;margin-top:4px}
+  .sat-calc .sc-work{margin-top:16px;border-top:1px solid var(--sc-line);padding-top:14px;font-size:.88rem;color:var(--sc-ink)}
+  .sat-calc .sc-work strong{color:var(--sc-accent)}
+  .sat-calc .sc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  @media(max-width:560px){.sat-calc .sc-row{flex-direction:column;align-items:stretch}.sat-calc .sc-row label{min-width:0}.sat-calc .sc-atar{font-size:2rem}}
+  </style>
+
+  <div class="sc-tabs">
+    <button type="button" class="sc-tab active" data-dir="sat-to-atar">SAT to ATAR</button>
+    <button type="button" class="sc-tab" data-dir="atar-to-sat">ATAR to SAT</button>
+  </div>
+
+  <div class="sc-row" data-panel="sat-to-atar">
+    <label for="sc-sat-input">Your SAT score (400-1600)</label>
+    <input type="number" id="sc-sat-input" min="400" max="1600" step="10" placeholder="e.g. 1450">
+  </div>
+  <div class="sc-row" data-panel="atar-to-sat" hidden>
+    <label for="sc-atar-input">Target ATAR (0-99.95)</label>
+    <input type="number" id="sc-atar-input" min="0" max="99.95" step="0.05" placeholder="e.g. 90.00">
+  </div>
+  <p class="sc-hint">This is an indicative estimate only &mdash; there is no official SAT to ATAR conversion. See &ldquo;How this estimate is built&rdquo; below.</p>
+
+  <button type="button" class="sc-btn" data-sc-go>Estimate</button>
+  <div class="sc-err"></div>
+
+  <div class="sc-out" hidden>
+    <div class="sc-atar"></div>
+    <div class="sc-sub"></div>
+    <div class="sc-work"></div>
+    <div class="sc-warn">Estimate only, not an official ATAR or SAT equivalency. No Australian university converts a SAT score into an ATAR &mdash; they set their own minimum SAT, GPA, ACT or AP requirement by degree. Always check your target university&rsquo;s own entry requirements.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function el(sel, root){ return (root || document).querySelector(sel); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  function interpPercentile(score, scores, pcts){
+    if(score <= scores[0]) return pcts[0];
+    if(score >= scores[scores.length - 1]) return pcts[pcts.length - 1];
+    for(var i = 0; i < scores.length - 1; i++){
+      if(score <= scores[i + 1]){
+        var t = (score - scores[i]) / (scores[i + 1] - scores[i]);
+        return pcts[i] + t * (pcts[i + 1] - pcts[i]);
+      }
+    }
+    return pcts[pcts.length - 1];
+  }
+
+  function scoreFromPercentile(target, scores, pcts){
+    if(target <= pcts[0]) return scores[0];
+    if(target >= pcts[pcts.length - 1]) return scores[scores.length - 1];
+    for(var i = 0; i < pcts.length - 1; i++){
+      if(target <= pcts[i + 1]){
+        var t = (target - pcts[i]) / (pcts[i + 1] - pcts[i]);
+        return Math.round((scores[i] + t * (scores[i + 1] - scores[i])) / 10) * 10;
+      }
+    }
+    return scores[scores.length - 1];
+  }
+
+  function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var root = el('[data-sat-calc]');
+    if(!root) return;
+    var table = window.SAT_ATAR_PERCENTILE_TABLE;
+    var scores = table.scores, pcts = table.percentile;
+    var dir = 'sat-to-atar';
+    var tabs = all('.sc-tab', root);
+    var panels = { 'sat-to-atar': el('[data-panel="sat-to-atar"]', root), 'atar-to-sat': el('[data-panel="atar-to-sat"]', root) };
+    var out = el('.sc-out', root);
+    var errBox = el('.sc-err', root);
+
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        dir = tab.getAttribute('data-dir');
+        panels['sat-to-atar'].hidden = (dir !== 'sat-to-atar');
+        panels['atar-to-sat'].hidden = (dir !== 'atar-to-sat');
+        out.hidden = true;
+        errBox.textContent = '';
+      });
+    });
+
+    el('[data-sc-go]', root).addEventListener('click', function(){
+      errBox.textContent = '';
+      out.hidden = true;
+
+      if(dir === 'sat-to-atar'){
+        var satVal = parseFloat(el('#sc-sat-input', root).value);
+        if(isNaN(satVal)){ errBox.textContent = 'Enter your SAT score.'; return; }
+        if(satVal < 400){ errBox.textContent = 'The SAT is scored from 400 to 1600 (post-2016 scale).'; return; }
+        satVal = clamp(satVal, 400, 1600);
+        var pct = interpPercentile(satVal, scores, pcts);
+        var atarEst = clamp(Math.round(pct * 20) / 20, 0, 99.95);
+        var band = 10;
+        var lo = clamp(atarEst - band, 0, 99.95).toFixed(2);
+        var hi = clamp(atarEst + band, 0, 99.95).toFixed(2);
+        el('.sc-atar', out).innerHTML = atarEst.toFixed(2) + '<span class="sc-est">Indicative range ' + lo + '&ndash;' + hi + '</span>';
+        el('.sc-sub', out).textContent = 'Based on a SAT score of ' + satVal + '.';
+        el('.sc-work', out).innerHTML =
+          '<strong>How we got this:</strong> a score of ' + satVal + ' sits at roughly the <strong>' + pct.toFixed(1) +
+          'th percentile</strong> of US college-bound 11th/12th graders who sat the SAT (College Board’s nationally representative table). ' +
+          'Because the ATAR is itself a percentile rank of the Australian Year 12 age cohort, we show that same percentile as the indicative ATAR &mdash; ' +
+          'then widen it to a ' + '±' + band + ' band, since the two percentiles come from different populations and this overlay has no official status.';
+      } else {
+        var atarVal = parseFloat(el('#sc-atar-input', root).value);
+        if(isNaN(atarVal)){ errBox.textContent = 'Enter a target ATAR.'; return; }
+        if(atarVal < 0){ errBox.textContent = 'ATAR is reported from 0.00 to 99.95.'; return; }
+        atarVal = clamp(atarVal, 0, 99.95);
+        var est = scoreFromPercentile(atarVal, scores, pcts);
+        var bandSat = 40;
+        var loS = clamp(est - bandSat, 400, 1600);
+        var hiS = clamp(est + bandSat, 400, 1600);
+        el('.sc-atar', out).innerHTML = est + '<span class="sc-est">Indicative range ' + loS + '&ndash;' + hiS + '</span>';
+        el('.sc-sub', out).textContent = 'Based on a target ATAR of ' + atarVal.toFixed(2) + '.';
+        el('.sc-work', out).innerHTML =
+          '<strong>How we got this:</strong> an ATAR of ' + atarVal.toFixed(2) + ' represents roughly the top ' + (100 - atarVal).toFixed(2) +
+          '% of the Year 12 age cohort. We look up the SAT score that sits at that same percentile among US college-bound 11th/12th graders ' +
+          '(College Board’s nationally representative table) and widen it to a ' + '±' + bandSat + '-point band, for the same reason as above.';
+      }
+      out.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

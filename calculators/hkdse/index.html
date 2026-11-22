@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HKDSE to ATAR Calculator</title>
+</head>
+<body>
+<!--
+  HKDSE to ATAR Calculator (unofficial estimate, built on UWA's published official table)
+  No literal ampersand characters anywhere below (WordPress mangles them inside script tags) --
+  use nested if statements instead of double-ampersand, and the word "and" instead of a
+  literal ampersand in text. No backslash escapes in strings -- use literal UTF-8 characters.
+  Data source: University of Western Australia, "Hong Kong Diploma of Secondary Education"
+  international and overseas qualifications conversion table, accessed November 2026.
+-->
+<script>
+window.HKDSE_ATAR_TABLE = {
+  "source": "University of Western Australia, HKDSE conversion table",
+  "source_url": "https://uwa.edu.au/study/How-to-apply/International-and-overseas-qualifications/hong-kong-diploma-of-secondary-education",
+  "points": [13, 15, 16.5, 17.5, 19, 19.5, 20, 22],
+  "atar":   [70, 80, 85,   90,   94, 95,   96, 98]
+};
+</script>
+
+<div class="hk-calc" data-hk-calc>
+  <style>
+  .hk-calc{--hc-ink:#17202a;--hc-mut:#5b6b7c;--hc-line:#dfe5ec;--hc-accent:#8a1f3c;--hc-bg:#f7f9fc;font-family:inherit;color:var(--hc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .hk-calc *{box-sizing:border-box}
+  .hk-calc .hc-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .hk-calc .hc-tab{flex:1;padding:10px 8px;border:1px solid var(--hc-line);border-radius:6px;background:#fff;color:var(--hc-mut);font-weight:600;font-size:.9rem;cursor:pointer;text-align:center}
+  .hk-calc .hc-tab.active{background:var(--hc-accent);color:#fff;border-color:var(--hc-accent)}
+  .hk-calc .hc-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .hk-calc .hc-row label{font-size:.85rem;color:var(--hc-mut);min-width:170px}
+  .hk-calc .hc-row input,.hk-calc .hc-row select{flex:1;padding:10px 12px;border:1px solid var(--hc-line);border-radius:6px;font-size:1rem;font-family:inherit;background:#fff}
+  .hk-calc .hc-hint{font-size:.83rem;color:var(--hc-mut);margin:2px 0 14px}
+  .hk-calc .hc-btn{background:var(--hc-accent);color:#fff;border:0;border-radius:6px;padding:11px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .hk-calc .hc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  .hk-calc .hc-out{margin-top:20px;padding:18px;background:var(--hc-bg);border:1px solid var(--hc-line);border-radius:8px}
+  .hk-calc .hc-out[hidden]{display:none}
+  .hk-calc .hc-atar{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .hk-calc .hc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#fbe9ef;color:#8a1f3c;font-weight:700;margin-left:10px}
+  .hk-calc .hc-sub{color:var(--hc-mut);font-size:.95rem;margin-top:4px}
+  .hk-calc .hc-work{margin-top:16px;border-top:1px solid var(--hc-line);padding-top:14px;font-size:.88rem;color:var(--hc-ink)}
+  .hk-calc .hc-work strong{color:var(--hc-accent)}
+  .hk-calc .hc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  @media(max-width:560px){.hk-calc .hc-row{flex-direction:column;align-items:stretch}.hk-calc .hc-row label{min-width:0}.hk-calc .hc-atar{font-size:2rem}}
+  </style>
+
+  <div class="hc-tabs">
+    <button type="button" class="hc-tab active" data-dir="hkdse-to-atar">HKDSE to ATAR</button>
+    <button type="button" class="hc-tab" data-dir="atar-to-hkdse">ATAR to HKDSE</button>
+  </div>
+
+  <div class="hc-row" data-panel="hkdse-to-atar">
+    <label for="hc-hkdse-input">Your HKDSE aggregate (best 4 subjects)</label>
+    <input type="number" id="hc-hkdse-input" min="0" max="24" step="0.5" placeholder="e.g. 19">
+  </div>
+  <div class="hc-row" data-panel="atar-to-hkdse" hidden>
+    <label for="hc-atar-input">Target ATAR (70-98)</label>
+    <input type="number" id="hc-atar-input" min="70" max="98" step="0.05" placeholder="e.g. 90.00">
+  </div>
+  <p class="hc-hint">Built on the University of Western Australia's published HKDSE conversion table. See &ldquo;How this estimate is built&rdquo; below for the aggregate calculation and other universities' thresholds.</p>
+
+  <button type="button" class="hc-btn" data-hc-go>Estimate</button>
+  <div class="hc-err"></div>
+
+  <div class="hc-out" hidden>
+    <div class="hc-atar"></div>
+    <div class="hc-sub"></div>
+    <div class="hc-work"></div>
+    <div class="hc-warn">Estimate only, based on one university's (UWA) published table -- not an official, universal HKDSE-to-ATAR conversion. Other universities, including Western Sydney University, publish different HKDSE thresholds for similar ATAR outcomes. Always check your target university's own international admissions page.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function el(sel, root){ return (root || document).querySelector(sel); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+  function atarFromPoints(pts, points, atars){
+    if(pts < points[0]) return null;
+    if(pts >= points[points.length - 1]) return atars[atars.length - 1];
+    for(var i = 0; i < points.length - 1; i++){
+      if(pts <= points[i + 1]){
+        var t = (pts - points[i]) / (points[i + 1] - points[i]);
+        return atars[i] + t * (atars[i + 1] - atars[i]);
+      }
+    }
+    return atars[atars.length - 1];
+  }
+
+  function pointsFromAtar(target, points, atars){
+    if(target <= atars[0]) return points[0];
+    if(target >= atars[atars.length - 1]) return points[points.length - 1];
+    for(var i = 0; i < atars.length - 1; i++){
+      if(target <= atars[i + 1]){
+        var t = (target - atars[i]) / (atars[i + 1] - atars[i]);
+        return points[i] + t * (points[i + 1] - points[i]);
+      }
+    }
+    return points[points.length - 1];
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var root = el('[data-hk-calc]');
+    if(!root) return;
+    var table = window.HKDSE_ATAR_TABLE;
+    var points = table.points, atars = table.atar;
+    var dir = 'hkdse-to-atar';
+    var tabs = all('.hc-tab', root);
+    var panels = { 'hkdse-to-atar': el('[data-panel="hkdse-to-atar"]', root), 'atar-to-hkdse': el('[data-panel="atar-to-hkdse"]', root) };
+    var out = el('.hc-out', root);
+    var errBox = el('.hc-err', root);
+
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        dir = tab.getAttribute('data-dir');
+        panels['hkdse-to-atar'].hidden = (dir !== 'hkdse-to-atar');
+        panels['atar-to-hkdse'].hidden = (dir !== 'atar-to-hkdse');
+        out.hidden = true;
+        errBox.textContent = '';
+      });
+    });
+
+    el('[data-hc-go]', root).addEventListener('click', function(){
+      errBox.textContent = '';
+      out.hidden = true;
+
+      if(dir === 'hkdse-to-atar'){
+        var pts = parseFloat(el('#hc-hkdse-input', root).value);
+        if(isNaN(pts)){ errBox.textContent = 'Enter your HKDSE aggregate.'; return; }
+        if(pts < 0){ errBox.textContent = 'Enter an aggregate of 0 or higher.'; return; }
+        if(pts > 24){ errBox.textContent = 'The maximum possible aggregate (best 4 subjects) is 24.'; return; }
+        var atarEst = atarFromPoints(pts, points, atars);
+        if(atarEst === null){
+          el('.hc-atar', root).innerHTML = "Below UWA's published range";
+          el('.hc-sub', out).textContent = 'An aggregate of ' + pts + ' is below the lowest band (13 points) on UWA\'s published table.';
+          el('.hc-work', out).innerHTML = "<strong>What this means:</strong> UWA's table does not publish an ATAR equivalent below an aggregate of 13. Other universities, and foundation-year pathways, may still accept this result -- check directly with your target institution.";
+        } else {
+          var band = 3;
+          var lo = clamp(atarEst - band, 0, 99.95).toFixed(2);
+          var hi = clamp(atarEst + band, 0, 99.95).toFixed(2);
+          el('.hc-atar', root).innerHTML = atarEst.toFixed(2) + '<span class="hc-est">Indicative range ' + lo + '&ndash;' + hi + '</span>';
+          el('.hc-sub', out).textContent = 'Based on an HKDSE aggregate of ' + pts + ' (best 4 subjects).';
+          el('.hc-work', out).innerHTML =
+            '<strong>How we got this:</strong> we look up an aggregate of ' + pts +
+            " on the University of Western Australia's own published HKDSE conversion table and interpolate between its listed bands. " +
+            "Because this is one university's table, not a national standard, we widen it to a ±" + band + ' ATAR band -- other universities publish different thresholds for similar results.';
+        }
+      } else {
+        var atarVal = parseFloat(el('#hc-atar-input', root).value);
+        if(isNaN(atarVal)){ errBox.textContent = 'Enter a target ATAR.'; return; }
+        atarVal = clamp(atarVal, atars[0], atars[atars.length - 1]);
+        var ptsEst = pointsFromAtar(atarVal, points, atars);
+        el('.hc-atar', root).innerHTML = ptsEst.toFixed(1) + '<span class="hc-est">HKDSE aggregate (best 4)</span>';
+        el('.hc-sub', out).textContent = "For a target ATAR of " + atarVal.toFixed(2) + ", on UWA's table.";
+        el('.hc-work', out).innerHTML =
+          "<strong>How we got this:</strong> UWA's table maps an ATAR of " + atarVal.toFixed(2) + ' to roughly an HKDSE aggregate of <strong>' + ptsEst.toFixed(1) +
+          '</strong> across your best 4 Category A or Category C subjects. Other universities set their own, different thresholds for the same ATAR.';
+      }
+      out.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

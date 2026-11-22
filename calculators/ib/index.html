@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IB to ATAR Calculator (International Baccalaureate)</title>
+</head>
+<body>
+<!--
+  IB to ATAR Calculator (Combined Rank, official national schedule)
+  No literal ampersand characters anywhere below (WordPress mangles them inside script tags) --
+  use nested if statements instead of double-ampersand, and the word "and" instead of a
+  literal ampersand in text. No backslash escapes in strings -- use literal UTF-8 characters.
+  Data source: IB Australasia (publishing the ACTAC-agreed national schedule on behalf of
+  UAC, VTAC, QTAC, SATAC, TISC and the IBO), "IB Diploma Conversion to ATAR equivalent",
+  base whole-score table for 2026 Australian applicants, accessed November 2026.
+-->
+<script>
+window.IB_ATAR_TABLE = {
+  "source": "IB Australasia / UAC national Combined Rank schedule (base whole-score table)",
+  "source_url": "https://ibaustralasia.org/university-entrance/",
+  "ib":   [24,   25,   26,   27,   28,   29,   30,   31,   32,   33,   34,   35,   36,   37,   38,   39,   40,   41,   42,   43,   44,   45],
+  "atar": [64.60,66.95,69.55,72.25,74.65,77.10,79.30,81.70,84.20,86.65,89.00,90.75,92.25,93.60,94.65,95.80,96.85,97.80,98.65,99.35,99.75,99.95]
+};
+</script>
+
+<div class="ib-calc" data-ib-calc>
+  <style>
+  .ib-calc{--ic-ink:#17202a;--ic-mut:#5b6b7c;--ic-line:#dfe5ec;--ic-accent:#8a1f3c;--ic-bg:#f7f9fc;font-family:inherit;color:var(--ic-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .ib-calc *{box-sizing:border-box}
+  .ib-calc .ic-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .ib-calc .ic-tab{flex:1;padding:10px 8px;border:1px solid var(--ic-line);border-radius:6px;background:#fff;color:var(--ic-mut);font-weight:600;font-size:.9rem;cursor:pointer;text-align:center}
+  .ib-calc .ic-tab.active{background:var(--ic-accent);color:#fff;border-color:var(--ic-accent)}
+  .ib-calc .ic-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .ib-calc .ic-row label{font-size:.85rem;color:var(--ic-mut);min-width:170px}
+  .ib-calc .ic-row input,.ib-calc .ic-row select{flex:1;padding:10px 12px;border:1px solid var(--ic-line);border-radius:6px;font-size:1rem;font-family:inherit;background:#fff}
+  .ib-calc .ic-hint{font-size:.83rem;color:var(--ic-mut);margin:2px 0 14px}
+  .ib-calc .ic-btn{background:var(--ic-accent);color:#fff;border:0;border-radius:6px;padding:11px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .ib-calc .ic-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  .ib-calc .ic-out{margin-top:20px;padding:18px;background:var(--ic-bg);border:1px solid var(--ic-line);border-radius:8px}
+  .ib-calc .ic-out[hidden]{display:none}
+  .ib-calc .ic-atar{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .ib-calc .ic-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#fbe9ef;color:#8a1f3c;font-weight:700;margin-left:10px}
+  .ib-calc .ic-sub{color:var(--ic-mut);font-size:.95rem;margin-top:4px}
+  .ib-calc .ic-work{margin-top:16px;border-top:1px solid var(--ic-line);padding-top:14px;font-size:.88rem;color:var(--ic-ink)}
+  .ib-calc .ic-work strong{color:var(--ic-accent)}
+  .ib-calc .ic-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  @media(max-width:560px){.ib-calc .ic-row{flex-direction:column;align-items:stretch}.ib-calc .ic-row label{min-width:0}.ib-calc .ic-atar{font-size:2rem}}
+  </style>
+
+  <div class="ic-tabs">
+    <button type="button" class="ic-tab active" data-dir="ib-to-atar">IB to ATAR</button>
+    <button type="button" class="ic-tab" data-dir="atar-to-ib">ATAR to IB</button>
+  </div>
+
+  <div class="ic-row" data-panel="ib-to-atar">
+    <label for="ic-ib-select">Your IB Diploma score (24-45)</label>
+    <select id="ic-ib-select">
+      <option value="">Select your score&hellip;</option>
+    </select>
+  </div>
+  <div class="ic-row" data-panel="atar-to-ib" hidden>
+    <label for="ic-atar-input">Target ATAR (64.60-99.95)</label>
+    <input type="number" id="ic-atar-input" min="64.6" max="99.95" step="0.05" placeholder="e.g. 90.00">
+  </div>
+  <p class="ic-hint">Based on the current national Combined Rank schedule. See &ldquo;How this is built&rdquo; below for what IBAS fine-tuning can add or subtract.</p>
+
+  <button type="button" class="ic-btn" data-ic-go>Convert</button>
+  <div class="ic-err"></div>
+
+  <div class="ic-out" hidden>
+    <div class="ic-atar"></div>
+    <div class="ic-sub"></div>
+    <div class="ic-work"></div>
+    <div class="ic-warn">Your actual Combined Rank is published by UAC on your behalf and may differ by roughly half an ATAR point from the base figure above once your IB Admissions Score (IBAS) fine-tuning is applied -- see &ldquo;How this is built&rdquo; below. This calculator is unofficial and for planning only.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function el(sel, root){ return (root || document).querySelector(sel); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var root = el('[data-ib-calc]');
+    if(!root) return;
+    var table = window.IB_ATAR_TABLE;
+    var ibScores = table.ib, atars = table.atar;
+    var select = el('#ic-ib-select', root);
+    for(var i = ibScores.length - 1; i >= 0; i--){
+      var opt = document.createElement('option');
+      opt.value = ibScores[i];
+      opt.textContent = ibScores[i];
+      select.appendChild(opt);
+    }
+
+    var dir = 'ib-to-atar';
+    var tabs = all('.ic-tab', root);
+    var panels = { 'ib-to-atar': el('[data-panel="ib-to-atar"]', root), 'atar-to-ib': el('[data-panel="atar-to-ib"]', root) };
+    var out = el('.ic-out', root);
+    var errBox = el('.ic-err', root);
+
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        dir = tab.getAttribute('data-dir');
+        panels['ib-to-atar'].hidden = (dir !== 'ib-to-atar');
+        panels['atar-to-ib'].hidden = (dir !== 'atar-to-ib');
+        out.hidden = true;
+        errBox.textContent = '';
+      });
+    });
+
+    el('[data-ic-go]', root).addEventListener('click', function(){
+      errBox.textContent = '';
+      out.hidden = true;
+
+      if(dir === 'ib-to-atar'){
+        var val = select.value;
+        if(val === ''){ errBox.textContent = 'Select your IB Diploma score.'; return; }
+        var score = parseInt(val, 10);
+        var idx = ibScores.indexOf(score);
+        var atarVal = atars[idx];
+        var band = 0.5;
+        var lo = clamp(atarVal - band, 0, 99.95).toFixed(2);
+        var hi = clamp(atarVal + band, 0, 99.95).toFixed(2);
+        el('.ic-atar', root).innerHTML = atarVal.toFixed(2) + '<span class="ic-est">IBAS range ' + lo + '&ndash;' + hi + '</span>';
+        el('.ic-sub', out).textContent = 'Based on an IB Diploma score of ' + score + '.';
+        el('.ic-work', out).innerHTML =
+          '<strong>How we got this:</strong> on the current national Combined Rank schedule, an IB Diploma score of ' + score + ' maps to a base Combined Rank of <strong>' + atarVal.toFixed(2) +
+          "</strong>. Since November 2022, UAC fine-tunes this using your IB Admissions Score (IBAS) -- your subject-level results within that same total score -- so your own published Combined Rank can land up to roughly " + band + ' ATAR point either side of this base figure.';
+      } else {
+        var target = parseFloat(el('#ic-atar-input', root).value);
+        if(isNaN(target)){ errBox.textContent = 'Enter a target ATAR.'; return; }
+        target = clamp(target, atars[0], atars[atars.length - 1]);
+        var bestIdx = 0;
+        var bestDiff = Math.abs(atars[0] - target);
+        for(var j = 1; j < atars.length; j++){
+          var diff = Math.abs(atars[j] - target);
+          if(diff < bestDiff){ bestDiff = diff; bestIdx = j; }
+        }
+        el('.ic-atar', root).innerHTML = 'IB ' + ibScores[bestIdx] + '<span class="ic-est">Combined Rank ' + atars[bestIdx].toFixed(2) + '</span>';
+        el('.ic-sub', out).textContent = 'Closest match for a target ATAR of ' + target.toFixed(2) + '.';
+        el('.ic-work', out).innerHTML =
+          '<strong>How we got this:</strong> we found the IB Diploma score whose base Combined Rank is closest to ' + target.toFixed(2) +
+          ' on the national schedule. Because IB scores are whole numbers from 24 to 45, there is no in-between score -- the nearest match is IB <strong>' + ibScores[bestIdx] +
+          '</strong>, with a base Combined Rank of <strong>' + atars[bestIdx].toFixed(2) + '</strong>.';
+      }
+      out.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

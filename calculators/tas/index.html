@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCE (Tasmania) ATAR Calculator</title>
+</head>
+<body>
+<!-- wp:html -->
+<!-- No bare ampersands anywhere in this script: WordPress mangles raw ampersand characters inside script tags -->
+<div class="tas-calc" data-tas-calc>
+  <style>
+  .tas-calc{--tc-ink:#17202a;--tc-mut:#5b6b7c;--tc-line:#dfe5ec;--tc-accent:#1b3a6b;--tc-bg:#f7f9fc;font-family:inherit;color:var(--tc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .tas-calc *{box-sizing:border-box}
+  .tas-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .tas-calc .tc-row{display:grid;grid-template-columns:1fr 150px 100px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .tas-calc .tc-row input,.tas-calc .tc-row select{width:100%;padding:9px 10px;border:1px solid var(--tc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--tc-ink)}
+  .tas-calc .tc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--tc-mut);font-weight:600}
+  .tas-calc .tc-del{background:none;border:1px solid var(--tc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--tc-mut);font-size:1rem;line-height:1}
+  .tas-calc .tc-btn{background:var(--tc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .tas-calc .tc-btn.ghost{background:none;color:var(--tc-accent);border:1px solid var(--tc-line);font-weight:500}
+  .tas-calc .tc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .tas-calc .tc-hint{font-size:.83rem;color:var(--tc-mut);margin:4px 0 14px}
+  .tas-calc .tc-out{margin-top:22px;padding:18px;background:var(--tc-bg);border:1px solid var(--tc-line);border-radius:8px}
+  .tas-calc .tc-out[hidden]{display:none}
+  .tas-calc .tc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .tas-calc .tc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:700;margin-left:10px}
+  .tas-calc .tc-te{color:var(--tc-mut);font-size:.95rem;margin-top:4px}
+  .tas-calc .tc-work{margin-top:16px;border-top:1px solid var(--tc-line);padding-top:14px}
+  .tas-calc .tc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .tas-calc .tc-work th,.tas-calc .tc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--tc-line)}
+  .tas-calc .tc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--tc-mut)}
+  .tas-calc .tc-work td:last-child,.tas-calc .tc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .tas-calc .tc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:600;margin-left:6px}
+  .tas-calc .tc-tag.part{background:#fdf0e3;color:#8a5a1f}
+  .tas-calc .tc-tag.drop{background:#eceff3;color:#5b6b7c}
+  .tas-calc .tc-note{font-size:.85rem;color:var(--tc-mut);margin-top:12px}
+  .tas-calc .tc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  @media(max-width:620px){.tas-calc .tc-row{grid-template-columns:1fr;gap:4px;padding-bottom:10px;border-bottom:1px solid var(--tc-line)}.tas-calc .tc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="tc-row tc-head"><span>Course</span><span>Worth</span><span>Scaled score</span><span></span></div>
+  <div class="tc-list"></div>
+  <p class="tc-hint">Enter your <strong>scaled course score</strong> for each course you successfully completed (Satisfactory Achievement or higher) &mdash; this is the score TASC calculates for you after course scaling, not a raw mark (TASC doesn't publish a raw-to-scaled table; see below). Pick &ldquo;15 pts&rdquo; for a normal Level 3/4 course and &ldquo;8 pts&rdquo; for a HAP unit or a semester-length UCP unit. Only enter courses from two of your senior-secondary years (Year 11, 12 or 13).</p>
+  <div class="tc-actions">
+    <button type="button" class="tc-btn ghost tc-add">+ Add course</button>
+    <button type="button" class="tc-btn tc-go">Estimate my ATAR</button>
+  </div>
+  <div class="tc-err"></div>
+
+  <div class="tc-out" hidden>
+    <div class="tc-atar"></div>
+    <div class="tc-te"></div>
+    <div class="tc-work">
+      <h3 style="margin-top:0">How this estimate was built</h3>
+      <table><thead><tr><th>Course</th><th>Points used</th><th>Contribution</th></tr></thead><tbody class="tc-work-body"></tbody></table>
+      <p class="tc-note tc-work-note"></p>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    function table(){
+      var all = window.TAS_SCALING_TABLE || {};
+      var y = window.TAS_SCALING_YEAR || '2025';
+      return all[y] || all[Object.keys(all)[0]] || null;
+    }
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function atarFor(te){
+      var t = table();
+      var map = (t || {}).te_to_atar;
+      if(!map) return null;
+      var keys = Object.keys(map).map(Number).sort(function(a,b){ return a-b; });
+      var lo = keys[0], hi = keys[keys.length-1];
+      if(te <= lo){ return {label:map[lo].toFixed(2), value:map[lo]}; }
+      if(te >= hi){ return {label:map[hi].toFixed(2), value:map[hi]}; }
+      var fl = Math.floor(te), ce = Math.ceil(te);
+      if(fl === ce){ return {label:map[fl].toFixed(2), value:map[fl]}; }
+      var a1 = map[fl], a2 = map[ce];
+      var frac = te - fl;
+      var v = a1 + frac * (a2 - a1);
+      return {label:v.toFixed(2), value:v};
+    }
+
+    function init(root){
+      if(!root || root.getAttribute('data-tc-init')) return;
+      root.setAttribute('data-tc-init','1');
+
+      var list = root.querySelector('.tc-list');
+      var errEl = root.querySelector('.tc-err');
+      var out = root.querySelector('.tc-out');
+
+      function addRow(){
+        var d = document.createElement('div');
+        d.className = 'tc-row';
+        d.innerHTML =
+          '<input type="text" placeholder="e.g. Biology">' +
+          '<select><option value="15">15 pts (course)</option><option value="8">8 pts (HAP / semester UCP)</option></select>' +
+          '<input type="number" min="0" max="30" step="0.1" placeholder="0-26">' +
+          '<button type="button" class="tc-del" aria-label="Remove">&times;</button>';
+        d.children[3].addEventListener('click', function(){
+          if(list.children.length > 1){ d.parentNode.removeChild(d); }
+        });
+        list.appendChild(d);
+      }
+      for(var i=0;i<5;i++) addRow();
+      root.querySelector('.tc-add').addEventListener('click', function(){ addRow(); });
+
+      root.querySelector('.tc-go').addEventListener('click', function(){
+        errEl.textContent = '';
+        out.hidden = true;
+
+        var entries = [];
+        Array.prototype.forEach.call(list.children, function(r){
+          var name = r.children[0].value.trim();
+          var pts = parseFloat(r.children[1].value);
+          var score = r.children[2].value.trim();
+          if(name === '' || score === ''){ return; }
+          var sc = parseFloat(score);
+          if(isNaN(sc)){ return; }
+          entries.push({name:name, points:pts, score:sc});
+        });
+
+        if(entries.length === 0){
+          errEl.textContent = 'Add at least four courses to estimate a TE Score.';
+          return;
+        }
+
+        var sorted = entries.slice().sort(function(a,b){ return b.score - a.score; });
+        var cap = 75;
+        var remaining = cap;
+        var total = 0;
+        var pointsUsed = 0;
+        var used = [];
+        var dropped = [];
+        for(var i=0;i<sorted.length;i++){
+          var e = sorted[i];
+          if(remaining <= 0){ dropped.push(e); continue; }
+          var ptsUsed = Math.min(e.points, remaining);
+          var contrib = e.score * (ptsUsed / 15);
+          total += contrib;
+          pointsUsed += ptsUsed;
+          remaining -= ptsUsed;
+          used.push({name:e.name, pointsUsed:ptsUsed, maxPoints:e.points, contrib:contrib});
+        }
+
+        if(pointsUsed < 60){
+          errEl.textContent = 'These courses only add up to ' + pointsUsed + ' points. TASC needs at least 60 points (roughly four 15-point courses) for a TE Score — add more courses.';
+          return;
+        }
+
+        var teScore = Math.floor(total * 10) / 10;
+        var result = atarFor(teScore);
+
+        out.hidden = false;
+        var atarEl = out.querySelector('.tc-atar');
+        var teEl = out.querySelector('.tc-te');
+        var atarLabel = result ? result.label : 'n/a';
+        atarEl.innerHTML = atarLabel + '<span class="tc-est">Estimate</span>';
+        teEl.textContent = 'TE Score: ' + teScore.toFixed(1) + ' (from ' + pointsUsed + ' of the 60-75 point range)';
+
+        var body = out.querySelector('.tc-work-body');
+        body.innerHTML = '';
+        used.forEach(function(e){
+          var tr = document.createElement('tr');
+          var partial = e.pointsUsed < e.maxPoints;
+          var tag = partial ? '<span class="tc-tag part">Partial</span>' : '';
+          tr.innerHTML = '<td>' + esc(e.name) + tag + '</td><td>' + e.pointsUsed.toFixed(e.pointsUsed % 1 === 0 ? 0 : 1) + ' / ' + e.maxPoints + '</td><td>' + e.contrib.toFixed(3) + '</td>';
+          body.appendChild(tr);
+        });
+        dropped.forEach(function(e){
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td style="color:#5b6b7c">' + esc(e.name) + '<span class="tc-tag drop">Not used</span></td><td style="color:#5b6b7c">0 / ' + e.points + '</td><td style="color:#5b6b7c">0</td>';
+          body.appendChild(tr);
+        });
+
+        var note = 'Courses are taken best-score-first until the 75-point cap is reached; a course used only partly contributes only that fraction of its score. The running total (' + total.toFixed(3) + ') is rounded down to one decimal place for the official TE Score.';
+        out.querySelector('.tc-work-note').textContent = note;
+      });
+    }
+
+    document.querySelectorAll('[data-tas-calc]').forEach(init);
+  })();
+  </script>
+</div>
+<!-- /wp:html -->
+</body>
+</html>

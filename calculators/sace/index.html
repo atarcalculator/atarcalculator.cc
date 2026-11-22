@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SACE (South Australia) ATAR Calculator</title>
+</head>
+<body>
+<!-- SACE ATAR Calculator — paste into a WordPress Custom HTML block (wp:html).
+     Live on: post 1534, https://atarcalculator.cc/sa-atar-calculator/
+     Verified working in browser 15 Oct 2026.
+
+     ⚠️ NEVER introduce a bare "&" into this file (&&, &, &=).
+     WordPress entity-encodes a bare ampersand to &#038; on write, entities are not
+     decoded inside <script>, and the whole script dies with
+     "SyntaxError: Invalid or unexpected token". Use De Morgan with || instead.
+     Already-valid entities (&#215;, &middot;) are safe. See output/README.md.
+
+     Reads window.SACE_ATAR_TABLE (year-keyed) and window.SACE_ATAR_YEAR.
+     Until that table is present it shows the aggregate plus a notice instead of an ATAR.
+     Table ready to wire: output/_data/sace-atar-table-2025.json -->
+<div class="sace-calc" data-sace-calc>
+  <style>
+  .sace-calc{--sc-ink:#17202a;--sc-mut:#5b6b7c;--sc-line:#dfe5ec;--sc-accent:#1d6fd0;--sc-bg:#f7f9fc;font-family:inherit;color:var(--sc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .sace-calc *{box-sizing:border-box}
+  .sace-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .sace-calc .sc-row{display:grid;grid-template-columns:1fr 104px 92px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .sace-calc .sc-row input,.sace-calc .sc-row select{width:100%;padding:9px 10px;border:1px solid var(--sc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--sc-ink)}
+  .sace-calc .sc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--sc-mut);font-weight:600}
+  .sace-calc .sc-del{background:none;border:1px solid var(--sc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--sc-mut);font-size:1rem;line-height:1}
+  .sace-calc .sc-btn{background:var(--sc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .sace-calc .sc-btn.ghost{background:none;color:var(--sc-accent);border:1px solid var(--sc-line);font-weight:500}
+  .sace-calc .sc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .sace-calc .sc-out{margin-top:22px;padding:18px;background:var(--sc-bg);border:1px solid var(--sc-line);border-radius:8px}
+  .sace-calc .sc-out[hidden]{display:none}
+  .sace-calc .sc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .sace-calc .sc-agg{color:var(--sc-mut);font-size:.95rem;margin-top:2px}
+  .sace-calc .sc-work{margin-top:16px;border-top:1px solid var(--sc-line);padding-top:14px}
+  .sace-calc .sc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .sace-calc .sc-work th,.sace-calc .sc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--sc-line)}
+  .sace-calc .sc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--sc-mut)}
+  .sace-calc .sc-work td:last-child,.sace-calc .sc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .sace-calc .sc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#e6eefb;color:#1d4e8f;font-weight:600;margin-left:6px}
+  .sace-calc .sc-tag.flex{background:#eceff3;color:#5b6b7c}
+  .sace-calc .sc-note{font-size:.85rem;color:var(--sc-mut);margin-top:12px}
+  .sace-calc .sc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:14px}
+  .sace-calc .sc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  @media(max-width:560px){.sace-calc .sc-row{grid-template-columns:1fr 84px 76px 34px;gap:6px}.sace-calc .sc-row input,.sace-calc .sc-row select{padding:8px 7px;font-size:.88rem}.sace-calc .sc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="sc-row sc-head"><span>Subject</span><span>Credits</span><span>Scaled</span><span></span></div>
+  <div class="sc-list"></div>
+  <div class="sc-actions">
+    <button type="button" class="sc-btn ghost sc-add">+ Add subject</button>
+    <button type="button" class="sc-btn sc-go">Calculate my ATAR</button>
+  </div>
+  <div class="sc-err"></div>
+
+  <div class="sc-out" hidden>
+    <div class="sc-atar"></div>
+    <div class="sc-agg"></div>
+    <div class="sc-work">
+      <h3 style="margin-top:0">How this aggregate was built</h3>
+      <table><thead><tr><th>Subject</th><th>Counted as</th><th>Points</th></tr></thead><tbody class="sc-work-body"></tbody></table>
+      <p class="sc-note sc-work-note"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var CORE_N=3, FLEX=30, CAP_AGG=89.30, FLOOR_AGG=12.70;
+
+  function lookup(agg){
+    var tables = window.SACE_ATAR_TABLE || {};
+    var t = tables[window.SACE_ATAR_YEAR || '2025'];
+    if(!t) return null;
+    if(agg >= CAP_AGG) return 99.95;
+    if(agg <  FLOOR_AGG) return 'none';
+    var k = (Math.round(agg*20)/20).toFixed(2);
+    return (k in t) ? t[k] : null;
+  }
+
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  function solve(subs){
+    var twenties = subs.filter(function(s){ return s.kind==='20'; });
+    var tens     = subs.filter(function(s){ return s.kind==='10'; });
+    var rec      = subs.filter(function(s){ return s.kind==='R'; })
+                       .sort(function(a,b){ return b.score-a.score; }).slice(0,2);
+    if(twenties.length < CORE_N) return 'core';
+
+    var totalCredits = 0;
+    subs.forEach(function(s){ totalCredits += (s.kind === '20') ? 20 : 10; });
+    if(totalCredits < 90) return 'credits';
+
+    var best=null, idx=twenties.map(function(_,i){ return i; });
+    (function combos(start, pick){
+      if(pick.length === CORE_N){
+        var core = pick.map(function(i){ return twenties[i]; });
+        var rest = idx.filter(function(i){ return pick.indexOf(i)<0; }).map(function(i){ return twenties[i]; });
+        var opts = [];
+        rest.forEach(function(s){
+          opts.push({s:s, cr:20, pts:s.score,   how:'full 20-credit'});
+          opts.push({s:s, cr:10, pts:s.score/2, how:'half of a 20-credit'});
+        });
+        tens.forEach(function(s){ opts.push({s:s, cr:10, pts:s.score, how:'10-credit'}); });
+        rec.forEach(function(s){ opts.push({s:s, cr:10, pts:Math.min(s.score,10), how:'recognised studies'}); });
+
+        var fb=null;
+        (function fill(i, cr, pts, used, sel){
+          if(cr === FLEX){ if(!fb || pts > fb.pts) fb = {pts:pts, sel:sel.slice()}; return; }
+          if(i >= opts.length || cr > FLEX) return;
+          var o = opts[i];
+          var isFree = used.indexOf(o.s) < 0;
+          var fits = cr + o.cr <= FLEX;
+          if(isFree){ if(fits){
+            used.push(o.s); sel.push(o);
+            fill(i+1, cr+o.cr, pts+o.pts, used, sel);
+            sel.pop(); used.pop();
+          } }
+          fill(i+1, cr, pts, used, sel);
+        })(0,0,0,[],[]);
+
+        if(!fb) return;
+        var total = core.reduce(function(a,s){ return a+s.score; },0) + fb.pts;
+        if(!best || total > best.total) best = {total:total, core:core, flex:fb.sel};
+        return;
+      }
+      for(var j=start;j<twenties.length;j++){ pick.push(j); combos(j+1,pick); pick.pop(); }
+    })(0,[]);
+    return best;
+  }
+
+  function init(root){
+    if(!root || root.getAttribute('data-sc-init')) return;
+    root.setAttribute('data-sc-init','1');
+
+    var list = root.querySelector('.sc-list');
+    var errEl = root.querySelector('.sc-err');
+    var out = root.querySelector('.sc-out');
+
+    function addRow(){
+      var d = document.createElement('div');
+      d.className = 'sc-row';
+      d.innerHTML =
+        '<input type="text" placeholder="e.g. Mathematical Methods">' +
+        '<select><option value="20">20 credit</option><option value="10">10 credit</option><option value="R">Recognised</option></select>' +
+        '<input type="number" min="0" step="0.01" placeholder="0.00">' +
+        '<button type="button" class="sc-del" aria-label="Remove">×</button>';
+      d.children[3].addEventListener('click', function(){
+        if(list.children.length > 1) d.parentNode.removeChild(d);
+      });
+      list.appendChild(d);
+    }
+    for(var i=0;i<5;i++) addRow();
+    root.querySelector('.sc-add').addEventListener('click', addRow);
+
+    function read(){
+      var subs=[], err=null;
+      Array.prototype.forEach.call(list.children, function(r){
+        var n = r.children[0].value.trim();
+        var k = r.children[1].value;
+        var v = r.children[2].value.trim();
+        if(!v) return;
+        var s = parseFloat(v);
+        if(isNaN(s) || s < 0){ err = 'Scaled scores must be numbers.'; return; }
+        var max = (k === '20') ? 20 : 10;
+        if(s > max){
+          err = 'A ' + (k === 'R' ? 'recognised studies entry' : k + '-credit subject') + ' can score at most ' + max + '.';
+          return;
+        }
+        subs.push({name: n || 'Unnamed subject', kind:k, score:s});
+      });
+      return {subs:subs, err:err};
+    }
+
+    root.querySelector('.sc-go').addEventListener('click', function(){
+      errEl.textContent = '';
+      var r = read();
+      if(r.err){ errEl.textContent = r.err; out.hidden = true; return; }
+
+      var best = solve(r.subs);
+      if(best === 'core'){
+        errEl.textContent = 'You need at least three 20-credit Stage 2 subjects to form the 60-credit core.';
+        out.hidden = true; return;
+      }
+      if(best === 'credits'){
+        errEl.textContent = 'Those subjects add up to fewer than 90 credits, so they cannot form a full university aggregate yet. Add the rest of your Stage 2 subjects.';
+        out.hidden = true; return;
+      }
+      if(!best){
+        errEl.textContent = 'Your subjects cannot be combined into exactly 30 flexible credits. Check the credit value selected on each row.';
+        out.hidden = true; return;
+      }
+
+      var agg = Math.round(best.total * 100) / 100;
+      var rows = '';
+      best.core.forEach(function(s){
+        rows += '<tr><td>' + esc(s.name) + '<span class="sc-tag">Core</span></td><td>full 20-credit</td><td>' + s.score.toFixed(2) + '</td></tr>';
+      });
+      best.flex.forEach(function(o){
+        rows += '<tr><td>' + esc(o.s.name) + '<span class="sc-tag flex">Flexible</span></td><td>' + o.how + '</td><td>' + o.pts.toFixed(2) + '</td></tr>';
+      });
+      rows += '<tr><td colspan="2"><strong>Aggregate (out of 90)</strong></td><td><strong>' + agg.toFixed(2) + '</strong></td></tr>';
+      root.querySelector('.sc-work-body').innerHTML = rows;
+
+      var unused = r.subs.filter(function(s){
+        if(best.core.indexOf(s) >= 0) return false;
+        return !best.flex.some(function(o){ return o.s === s; });
+      });
+      root.querySelector('.sc-work-note').textContent = unused.length
+        ? 'Not counted: ' + unused.map(function(s){ return s.name; }).join(', ') + '. Your aggregate is the best valid 60-credit core plus 30 flexible credits — adding more subjects never lowers it.'
+        : 'Every subject you entered was used in the best valid combination.';
+
+      var atar = lookup(agg);
+      var aEl = root.querySelector('.sc-atar');
+      var gEl = root.querySelector('.sc-agg');
+      if(atar === null){
+        aEl.textContent = 'Aggregate ' + agg.toFixed(2);
+        gEl.innerHTML = '<span class="sc-warn">The ' + (window.SACE_ATAR_YEAR || '2025') + ' SATAC conversion table is not loaded on this page yet, so the ATAR cannot be shown. The aggregate and working above are correct.</span>';
+      } else if(atar === 'none'){
+        aEl.textContent = 'No ATAR';
+        gEl.textContent = 'Aggregate ' + agg.toFixed(2) + ' — below the minimum aggregate of ' + FLOOR_AGG.toFixed(2) + ' required for an ATAR to be issued.';
+      } else {
+        aEl.textContent = 'ATAR ' + Number(atar).toFixed(2);
+        gEl.textContent = 'From an aggregate of ' + agg.toFixed(2) + ' out of 90.' +
+          (agg >= CAP_AGG ? ' Aggregates of ' + CAP_AGG.toFixed(2) + ' and above all convert to the maximum ATAR of 99.95.' : '');
+      }
+      out.hidden = false;
+    });
+  }
+
+  function boot(){
+    var nodes = document.querySelectorAll('[data-sace-calc]');
+    for(var i=0;i<nodes.length;i++) init(nodes[i]);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QCE (Queensland) ATAR Calculator</title>
+</head>
+<body>
+<!-- QCE ATAR Calculator (Queensland) — paste into a WordPress Custom HTML block (wp:html).
+     Draft for /qld/ — NOT yet pushed. Verify in browser before publishing.
+
+     NEVER introduce a bare "&" into this file (no &&, no bare &, no &=).
+     WordPress entity-encodes a bare ampersand to &#038; on write; entities are not
+     decoded inside <script>, so the whole script dies with
+     "SyntaxError: Invalid or unexpected token". This file avoids && entirely
+     (uses nested ifs / || instead). Already-valid entities (&#215;, &times;) are safe.
+
+     Reads window.QCE_SCALING_TABLE (year-keyed) and window.QCE_SCALING_YEAR.
+     Data file ready to wire: output/_data/qce-scaling-table-2025.json
+     If the table is absent the calculator still runs in manual-scaled-score mode. -->
+<div class="qce-calc" data-qce-calc>
+  <style>
+  .qce-calc{--qc-ink:#17202a;--qc-mut:#5b6b7c;--qc-line:#dfe5ec;--qc-accent:#8a1f3c;--qc-bg:#f7f9fc;font-family:inherit;color:var(--qc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .qce-calc *{box-sizing:border-box}
+  .qce-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .qce-calc .qc-row{display:grid;grid-template-columns:1fr 128px 92px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .qce-calc .qc-row input,.qce-calc .qc-row select{width:100%;padding:9px 10px;border:1px solid var(--qc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--qc-ink)}
+  .qce-calc .qc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--qc-mut);font-weight:600}
+  .qce-calc .qc-del{background:none;border:1px solid var(--qc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--qc-mut);font-size:1rem;line-height:1}
+  .qce-calc .qc-btn{background:var(--qc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .qce-calc .qc-btn.ghost{background:none;color:var(--qc-accent);border:1px solid var(--qc-line);font-weight:500}
+  .qce-calc .qc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .qce-calc .qc-hint{font-size:.83rem;color:var(--qc-mut);margin:4px 0 14px}
+  .qce-calc .qc-out{margin-top:22px;padding:18px;background:var(--qc-bg);border:1px solid var(--qc-line);border-radius:8px}
+  .qce-calc .qc-out[hidden]{display:none}
+  .qce-calc .qc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .qce-calc .qc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#fbe9ef;color:#8a1f3c;font-weight:700;margin-left:10px}
+  .qce-calc .qc-agg{color:var(--qc-mut);font-size:.95rem;margin-top:4px}
+  .qce-calc .qc-work{margin-top:16px;border-top:1px solid var(--qc-line);padding-top:14px}
+  .qce-calc .qc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .qce-calc .qc-work th,.qce-calc .qc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--qc-line)}
+  .qce-calc .qc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--qc-mut)}
+  .qce-calc .qc-work td:last-child,.qce-calc .qc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .qce-calc .qc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#f3e1e7;color:#8a1f3c;font-weight:600;margin-left:6px}
+  .qce-calc .qc-tag.drop{background:#eceff3;color:#5b6b7c}
+  .qce-calc .qc-note{font-size:.85rem;color:var(--qc-mut);margin-top:12px}
+  .qce-calc .qc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  .qce-calc .qc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  @media(max-width:560px){.qce-calc .qc-row{grid-template-columns:1fr 104px 72px 32px;gap:6px}.qce-calc .qc-row input,.qce-calc .qc-row select{padding:8px 7px;font-size:.86rem}.qce-calc .qc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="qc-row qc-head"><span>Subject</span><span>Type</span><span>Result</span><span></span></div>
+  <div class="qc-list"></div>
+  <p class="qc-hint">For a <strong>General</strong> subject, pick it from the list and enter your <strong>subject result out of 100</strong> &mdash; we scale it for you. For an <strong>Applied</strong> subject or <strong>VET</strong> qualification, choose that type and enter your <strong>scaled score</strong> (0&ndash;100).</p>
+  <datalist id="qc-subjects"></datalist>
+  <div class="qc-actions">
+    <button type="button" class="qc-btn ghost qc-add">+ Add subject</button>
+    <button type="button" class="qc-btn qc-go">Estimate my ATAR</button>
+  </div>
+  <div class="qc-err"></div>
+
+  <div class="qc-out" hidden>
+    <div class="qc-atar"></div>
+    <div class="qc-agg"></div>
+    <div class="qc-work">
+      <h3 style="margin-top:0">How this estimate was built</h3>
+      <table><thead><tr><th>Subject</th><th>Counted as</th><th>Scaled</th></tr></thead><tbody class="qc-work-body"></tbody></table>
+      <p class="qc-note qc-work-note"></p>
+    </div>
+    <div class="qc-modelnote"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var MAX_COUNT=5;
+
+  function table(){
+    var all = window.QCE_SCALING_TABLE || {};
+    var y = window.QCE_SCALING_YEAR || '2025';
+    return all[y] || all[Object.keys(all)[0]] || null;
+  }
+
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  // piecewise-linear interpolation over ascending x anchors
+  function interp(x, xs, ys){
+    if(x <= xs[0]) return ys[0];
+    if(x >= xs[xs.length-1]) return ys[ys.length-1];
+    for(var i=0;i<xs.length-1;i++){
+      if(x <= xs[i+1]){
+        var t = (x - xs[i]) / (xs[i+1] - xs[i]);
+        return ys[i] + t * (ys[i+1] - ys[i]);
+      }
+    }
+    return ys[ys.length-1];
+  }
+
+  function scaledFromRaw(subjName, raw){
+    var t = table();
+    if(!t) return null;
+    if(!t.subjects) return null;
+    var s = t.subjects[subjName];
+    if(!s) return null;
+    return interp(raw, s.raw, s.scaled);
+  }
+
+  function modelAtar(agg){
+    var t = table();
+    var m = (t || {}).model;
+    if(!m) return null;
+    var xs = m.anchors.map(function(a){ return a[0]; });
+    var ys = m.anchors.map(function(a){ return a[1]; });
+    var v = interp(agg, xs, ys);
+    if(v > m.cap_atar) v = m.cap_atar;
+    return {atar:v, band:m.band, floor:m.floor_atar, cap:m.cap_atar, disclaimer:m.disclaimer};
+  }
+
+  function familyOf(name){
+    var n = name.toLowerCase();
+    if(n.indexOf('english') >= 0) return 'english';
+    if(n.indexOf('math') >= 0) return 'maths';
+    return null;
+  }
+
+  function init(root){
+    if(!root || root.getAttribute('data-qc-init')) return;
+    root.setAttribute('data-qc-init','1');
+
+    var list = root.querySelector('.qc-list');
+    var errEl = root.querySelector('.qc-err');
+    var out = root.querySelector('.qc-out');
+    var dl = root.querySelector('#qc-subjects');
+
+    var t = table();
+    if(t){ if(t.subjects){
+      Object.keys(t.subjects).sort().forEach(function(name){
+        var o = document.createElement('option');
+        o.value = name; dl.appendChild(o);
+      });
+    } }
+
+    function addRow(){
+      var d = document.createElement('div');
+      d.className = 'qc-row';
+      d.innerHTML =
+        '<input type="text" list="qc-subjects" placeholder="e.g. Mathematical Methods">' +
+        '<select><option value="G">General</option><option value="A">Applied</option><option value="V">VET</option></select>' +
+        '<input type="number" min="0" max="100" step="0.01" placeholder="0&ndash;100">' +
+        '<button type="button" class="qc-del" aria-label="Remove">&times;</button>';
+      d.children[1].addEventListener('change', function(){
+        var isG = d.children[1].value === 'G';
+        d.children[2].placeholder = isG ? 'result /100' : 'scaled';
+      });
+      d.children[3].addEventListener('click', function(){
+        if(list.children.length > 1) d.parentNode.removeChild(d);
+      });
+      list.appendChild(d);
+    }
+    for(var i=0;i<5;i++) addRow();
+    root.querySelector('.qc-add').addEventListener('click', addRow);
+
+    function read(){
+      var subs=[], err=null;
+      Array.prototype.forEach.call(list.children, function(r){
+        var name = r.children[0].value.trim();
+        var kind = r.children[1].value;
+        var v = r.children[2].value.trim();
+        if(!v) return;
+        var num = parseFloat(v);
+        if(isNaN(num) || num < 0 || num > 100){ err = 'Results must be a number from 0 to 100.'; return; }
+
+        var scaled, how, matched=false;
+        if(kind === 'G'){
+          var sc = scaledFromRaw(name || '', num);
+          if(sc === null){
+            scaled = num;
+            how = 'scaled score (subject not in table)';
+          } else {
+            scaled = sc; matched = true;
+            how = 'result ' + num.toFixed(0) + ' &rarr; scaled';
+          }
+        } else if(kind === 'A'){
+          scaled = num; how = 'Applied, scaled score';
+        } else {
+          scaled = num; how = 'VET, scaled at AQF level';
+        }
+        subs.push({name: name || 'Unnamed subject', kind:kind, scaled:scaled, how:how, matched:matched});
+      });
+      return {subs:subs, err:err};
+    }
+
+    root.querySelector('.qc-go').addEventListener('click', function(){
+      errEl.textContent = '';
+      var warns = [];
+      var r = read();
+      if(r.err){ errEl.textContent = r.err; out.hidden = true; return; }
+      if(r.subs.length === 0){ errEl.textContent = 'Enter at least one subject result.'; out.hidden = true; return; }
+
+      // QCE: best 5 count. VET limited to one, and at most one Applied in the best 5.
+      var ranked = r.subs.slice().sort(function(a,b){ return b.scaled - a.scaled; });
+      var counted=[], applied=0, vet=0, dropped=[];
+      ranked.forEach(function(s){
+        if(counted.length >= MAX_COUNT){ dropped.push(s); return; }
+        if(s.kind === 'A'){ if(applied >= 1){ dropped.push(s); return; } }
+        if(s.kind === 'V'){ if(vet >= 1){ dropped.push(s); return; } }
+        counted.push(s);
+        if(s.kind === 'A') applied++;
+        if(s.kind === 'V') vet++;
+      });
+
+      // English requirement note
+      var hasEnglish = r.subs.some(function(s){ return familyOf(s.name) === 'english'; });
+      if(!hasEnglish) warns.push('QCE requires a completed English subject at grade C or higher to qualify for an ATAR. Make sure one of your subjects is an English subject.');
+
+      // same-family General + Applied exclusion
+      ['english','maths'].forEach(function(fam){
+        var inFam = counted.filter(function(s){ return familyOf(s.name) === fam; });
+        var kinds = {};
+        inFam.forEach(function(s){ kinds[s.kind] = true; });
+        if(kinds['G']){ if(kinds['A']){
+          warns.push('You cannot count both a General and an Applied ' + (fam === 'english' ? 'English' : 'Maths') + ' subject. Only the higher one should count toward your best five.');
+        } }
+      });
+
+      if(counted.length < MAX_COUNT){
+        warns.push('An ATAR normally needs five scaled results. You entered ' + counted.length + ', so this is a partial estimate.');
+      }
+
+      var agg = counted.reduce(function(a,s){ return a + s.scaled; }, 0);
+      agg = Math.round(agg * 100) / 100;
+
+      var rows = '';
+      counted.forEach(function(s){
+        rows += '<tr><td>' + esc(s.name) + '<span class="qc-tag">Best 5</span></td><td>' + s.how + '</td><td>' + s.scaled.toFixed(2) + '</td></tr>';
+      });
+      dropped.forEach(function(s){
+        rows += '<tr><td>' + esc(s.name) + '<span class="qc-tag drop">Dropped</span></td><td>' + s.how + '</td><td>' + s.scaled.toFixed(2) + '</td></tr>';
+      });
+      rows += '<tr><td colspan="2"><strong>Best-5 scaled aggregate (out of 500)</strong></td><td><strong>' + agg.toFixed(2) + '</strong></td></tr>';
+      root.querySelector('.qc-work-body').innerHTML = rows;
+
+      root.querySelector('.qc-work-note').textContent = dropped.length
+        ? 'Only your best five scaled results count toward the ATAR, with at most one Applied subject and one VET qualification among them. The aggregate above is exact; the ATAR below is estimated from it.'
+        : 'The aggregate above is exact. The ATAR below is estimated from it.';
+
+      var aEl = root.querySelector('.qc-atar');
+      var gEl = root.querySelector('.qc-agg');
+      var mn = root.querySelector('.qc-modelnote');
+      var m = modelAtar(agg);
+
+      if(!m){
+        aEl.innerHTML = 'Aggregate ' + agg.toFixed(2);
+        gEl.innerHTML = '<span class="qc-warn">The QCE scaling and model data is not loaded on this page yet, so the ATAR cannot be estimated. The aggregate and working above are correct.</span>';
+        mn.innerHTML = '';
+      } else {
+        var lo = Math.max(m.floor, m.atar - m.band);
+        var hi = Math.min(m.cap, m.atar + m.band);
+        if(m.atar < m.floor){
+          aEl.innerHTML = 'ATAR 30.00 or less <span class="qc-est">Estimate</span>';
+          gEl.textContent = 'A best-5 aggregate of ' + agg.toFixed(2) + ' falls at or below the minimum reported ATAR of 30.00.';
+        } else {
+          aEl.innerHTML = 'ATAR ~' + m.atar.toFixed(2) + ' <span class="qc-est">Estimate</span>';
+          gEl.textContent = 'From a best-5 scaled aggregate of ' + agg.toFixed(2) + ' out of 500. Likely range ' + lo.toFixed(2) + ' to ' + hi.toFixed(2) + '.';
+        }
+        mn.innerHTML = '<div class="qc-warn"><strong>Why this is an estimate.</strong> Queensland (QTAC) publishes how each subject is scaled, but not the table that turns a scaled aggregate into an ATAR. The aggregate and the five subjects that counted are exact. The ATAR number is modelled from QTAC’s published subject distributions and typical Queensland outcomes, which is why it is shown as a range rather than a single official figure.</div>';
+      }
+
+      if(warns.length){
+        gEl.innerHTML += '<div class="qc-warn">' + warns.map(esc).join('<br>') + '</div>';
+      }
+      out.hidden = false;
+    });
+  }
+
+  function boot(){
+    var nodes = document.querySelectorAll('[data-qce-calc]');
+    for(var i=0;i<nodes.length;i++) init(nodes[i]);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>

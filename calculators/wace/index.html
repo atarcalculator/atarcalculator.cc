@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WACE (Western Australia) ATAR Calculator</title>
+</head>
+<body>
+<!-- wp:html -->
+<div class="wace-calc" data-wace-calc>
+  <style>
+  .wace-calc{--wc-ink:#17202a;--wc-mut:#5b6b7c;--wc-line:#dfe5ec;--wc-accent:#1b3a6b;--wc-bg:#f7f9fc;font-family:inherit;color:var(--wc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .wace-calc *{box-sizing:border-box}
+  .wace-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .wace-calc .wc-row{display:grid;grid-template-columns:1fr 100px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .wace-calc .wc-row input{width:100%;padding:9px 10px;border:1px solid var(--wc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--wc-ink)}
+  .wace-calc .wc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--wc-mut);font-weight:600}
+  .wace-calc .wc-del{background:none;border:1px solid var(--wc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--wc-mut);font-size:1rem;line-height:1}
+  .wace-calc .wc-btn{background:var(--wc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .wace-calc .wc-btn.ghost{background:none;color:var(--wc-accent);border:1px solid var(--wc-line);font-weight:500}
+  .wace-calc .wc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .wace-calc .wc-hint{font-size:.83rem;color:var(--wc-mut);margin:4px 0 14px}
+  .wace-calc .wc-out{margin-top:22px;padding:18px;background:var(--wc-bg);border:1px solid var(--wc-line);border-radius:8px}
+  .wace-calc .wc-out[hidden]{display:none}
+  .wace-calc .wc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .wace-calc .wc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:700;margin-left:10px}
+  .wace-calc .wc-agg{color:var(--wc-mut);font-size:.95rem;margin-top:4px}
+  .wace-calc .wc-work{margin-top:16px;border-top:1px solid var(--wc-line);padding-top:14px}
+  .wace-calc .wc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .wace-calc .wc-work th,.wace-calc .wc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--wc-line)}
+  .wace-calc .wc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--wc-mut)}
+  .wace-calc .wc-work td:last-child,.wace-calc .wc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .wace-calc .wc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:600;margin-left:6px}
+  .wace-calc .wc-tag.best{background:#e3f2e8;color:#1d6b3a}
+  .wace-calc .wc-tag.bonus{background:#fdf0e3;color:#8a5a1f}
+  .wace-calc .wc-tag.drop{background:#eceff3;color:#5b6b7c}
+  .wace-calc .wc-note{font-size:.85rem;color:var(--wc-mut);margin-top:12px}
+  .wace-calc .wc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  @media(max-width:560px){.wace-calc .wc-row{grid-template-columns:1fr 84px 32px;gap:6px}.wace-calc .wc-row input{padding:8px 7px;font-size:.86rem}.wace-calc .wc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="wc-row wc-head"><span>WACE course</span><span>Scaled score</span><span></span></div>
+  <div class="wc-list"></div>
+  <p class="wc-hint">Enter your <strong>scaled score</strong> (0 to 100) for each course &mdash; this is the score TISC calculates for you, not your raw exam mark (WA's scaling can't be reproduced from a published table; see below). Your TEA is your best 4 scaled scores, plus a 10% bonus each for a LOTE, Maths Methods and Maths Specialist score if you have them &mdash; even if they weren't in your best 4.</p>
+  <datalist id="wc-courses"></datalist>
+  <div class="wc-actions">
+    <button type="button" class="wc-btn ghost wc-add">+ Add course</button>
+    <button type="button" class="wc-btn wc-go">Estimate my ATAR</button>
+  </div>
+  <div class="wc-err"></div>
+
+  <div class="wc-out" hidden>
+    <div class="wc-atar"></div>
+    <div class="wc-agg"></div>
+    <div class="wc-work">
+      <h3 style="margin-top:0">How this estimate was built</h3>
+      <table><thead><tr><th>Course</th><th>Role</th><th>Scaled score</th></tr></thead><tbody class="wc-work-body"></tbody></table>
+      <p class="wc-note wc-work-note"></p>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    function table(){
+      var all = window.WACE_SCALING_TABLE || {};
+      var y = window.WACE_SCALING_YEAR || '2025';
+      return all[y] || all[Object.keys(all)[0]] || null;
+    }
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+    function interp(x, xs, ys){
+      if(x <= xs[0]) return ys[0];
+      if(x >= xs[xs.length-1]) return ys[ys.length-1];
+      for(var i=0;i<xs.length-1;i++){
+        if(x <= xs[i+1]){
+          var t = (x - xs[i]) / (xs[i+1] - xs[i]);
+          return ys[i] + t * (ys[i+1] - ys[i]);
+        }
+      }
+      return ys[ys.length-1];
+    }
+
+    var NORM_INDEX = null;
+    function norm(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(); }
+    function subjectInfo(name){
+      var t = table();
+      if(!t) return null;
+      if(!t.subjects) return null;
+      if(t.subjects[name]) return t.subjects[name];
+      if(!NORM_INDEX){
+        NORM_INDEX = {};
+        Object.keys(t.subjects).forEach(function(k){ NORM_INDEX[norm(k)] = t.subjects[k]; });
+      }
+      return NORM_INDEX[norm(name)] || null;
+    }
+
+    function atarFor(tea){
+      var t = table();
+      var a = (t || {}).tea_to_atar;
+      if(!a) return null;
+      var rows = a.table;
+      if(tea < rows[0][0]){ return {label:'below 30', value:null}; }
+      var xs = rows.map(function(r){ return r[0]; });
+      var ys = rows.map(function(r){ return r[1]; });
+      var v = interp(tea, xs, ys);
+      if(tea >= rows[rows.length-1][0]){ v = a.cap_atar; }
+      return {label:v.toFixed(2), value:v};
+    }
+
+    function init(root){
+      if(!root || root.getAttribute('data-wc-init')) return;
+      root.setAttribute('data-wc-init','1');
+
+      var list = root.querySelector('.wc-list');
+      var errEl = root.querySelector('.wc-err');
+      var out = root.querySelector('.wc-out');
+      var dl = root.querySelector('#wc-courses');
+
+      var t = table();
+      if(t){ if(t.subjects){
+        Object.keys(t.subjects).sort().forEach(function(name){
+          var o = document.createElement('option');
+          o.value = name; dl.appendChild(o);
+        });
+      } }
+
+      function addRow(preset){
+        var d = document.createElement('div');
+        d.className = 'wc-row';
+        d.innerHTML =
+          '<input type="text" list="wc-courses" placeholder="e.g. Chemistry">' +
+          '<input type="number" min="0" max="100" step="0.1" placeholder="0-100">' +
+          '<button type="button" class="wc-del" aria-label="Remove">&times;</button>';
+        if(preset){ d.children[0].value = preset; }
+        d.children[2].addEventListener('click', function(){
+          if(list.children.length > 1){ d.parentNode.removeChild(d); }
+        });
+        list.appendChild(d);
+      }
+      for(var i=0;i<5;i++) addRow();
+      root.querySelector('.wc-add').addEventListener('click', function(){ addRow(); });
+
+      root.querySelector('.wc-go').addEventListener('click', function(){
+        errEl.textContent = '';
+        out.hidden = true;
+
+        var entries = [];
+        var unknown = [];
+        Array.prototype.forEach.call(list.children, function(r){
+          var name = r.children[0].value.trim();
+          var score = r.children[1].value.trim();
+          if(name === ''){ return; }
+          if(score === ''){ return; }
+          var s = subjectInfo(name);
+          if(!s){ unknown.push(name); return; }
+          var sc = parseFloat(score);
+          if(isNaN(sc)){ return; }
+          entries.push({name:name, scaled:sc, group:s.group || null});
+        });
+
+        if(unknown.length){
+          errEl.textContent = 'Not recognised: ' + unknown.join(', ') + '. Pick a course from the list.';
+          return;
+        }
+        if(entries.length < 4){
+          errEl.textContent = 'TISC needs at least 4 scaled scores to calculate a TEA. Add more courses.';
+          return;
+        }
+
+        var sorted = entries.slice().sort(function(a,b){ return b.scaled - a.scaled; });
+        var best4 = sorted.slice(0,4);
+        var rest = sorted.slice(4);
+        var best4Sum = best4.reduce(function(s,e){ return s + e.scaled; }, 0);
+
+        var loteCandidates = entries.filter(function(e){ return e.group === 'lote'; });
+        var loteBest = null;
+        if(loteCandidates.length){
+          loteBest = loteCandidates.slice().sort(function(a,b){ return b.scaled - a.scaled; })[0];
+        }
+        var methodsEntry = null;
+        var specialistEntry = null;
+        entries.forEach(function(e){
+          if(e.group === 'methods'){ methodsEntry = e; }
+          if(e.group === 'specialist'){ specialistEntry = e; }
+        });
+
+        var bonusSum = 0;
+        if(loteBest){ bonusSum += 0.10 * loteBest.scaled; }
+        if(methodsEntry){ bonusSum += 0.10 * methodsEntry.scaled; }
+        if(specialistEntry){ bonusSum += 0.10 * specialistEntry.scaled; }
+
+        var tea = best4Sum + bonusSum;
+        var capped = false;
+        if(tea > 430){ tea = 430; capped = true; }
+
+        var result = atarFor(tea);
+
+        out.hidden = false;
+        var atarEl = out.querySelector('.wc-atar');
+        var aggEl = out.querySelector('.wc-agg');
+        var atarLabel = result ? result.label : 'n/a';
+        atarEl.innerHTML = atarLabel + '<span class="wc-est">Estimate</span>';
+        aggEl.textContent = 'TEA: ' + tea.toFixed(1) + (capped ? ' (capped at the maximum of 430)' : '') + ' out of 430';
+
+        var body = out.querySelector('.wc-work-body');
+        body.innerHTML = '';
+        function row(e, role, cls){
+          var tr = document.createElement('tr');
+          var tag = '<span class="wc-tag ' + cls + '">' + role + '</span>';
+          tr.innerHTML = '<td>' + esc(e.name) + tag + '</td><td></td><td>' + e.scaled.toFixed(1) + '</td>';
+          body.appendChild(tr);
+        }
+        best4.forEach(function(e){ row(e, 'Best 4', 'best'); });
+        rest.forEach(function(e){
+          var tr = document.createElement('tr');
+          tr.innerHTML = '<td style="color:#5b6b7c">' + esc(e.name) + '<span class="wc-tag drop">Not in best 4</span></td><td></td><td style="color:#5b6b7c">' + e.scaled.toFixed(1) + '</td>';
+          body.appendChild(tr);
+        });
+        if(loteBest){ row(loteBest, 'LOTE 10% bonus', 'bonus'); }
+        if(methodsEntry){ row(methodsEntry, 'Maths Methods 10% bonus', 'bonus'); }
+        if(specialistEntry){ row(specialistEntry, 'Maths Specialist 10% bonus', 'bonus'); }
+
+        var note = 'Best 4: ' + best4Sum.toFixed(1) + '. Bonuses (10% each of LOTE / Methods / Specialist, if you have them): ' + bonusSum.toFixed(1) + '. ';
+        note += 'A bonus course can appear twice above (once at full value in the best 4, once at 10% as a bonus) if it qualifies both ways &mdash; that matches TISC’s own rule.';
+        out.querySelector('.wc-work-note').textContent = note;
+      });
+    }
+
+    document.querySelectorAll('[data-wace-calc]').forEach(init);
+  })();
+  </script>
+</div>
+<!-- /wp:html -->
+</body>
+</html>

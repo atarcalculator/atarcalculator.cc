@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HSC (New South Wales) ATAR Calculator</title>
+</head>
+<body>
+<!-- HSC ATAR Calculator (New South Wales) - paste into a WordPress Custom HTML block.
+
+     TWO HARD RULES FOR THIS FILE, both learned the hard way on the QCE page:
+
+     1. No ampersand character anywhere, in code or in comments. WordPress entity-encodes
+        it on write, entities are not decoded inside a script element, and the whole
+        script then dies with "SyntaxError: Invalid or unexpected token". This file uses
+        nested ifs and the double-pipe operator instead of the double-ampersand operator.
+        Named entities that are already valid, such as the multiplication sign, are safe.
+     2. No backslash escapes. The MCP write pipeline can drop them, which silently breaks
+        any regex or escape sequence that relies on one. Character classes written without
+        backslashes are fine; literal UTF-8 characters are preferred over escapes.
+
+     Reads window.HSC_SCALING_TABLE (year-keyed) and window.HSC_SCALING_YEAR.
+     Live data: output/_data/hsc-scaling-table-2025.json, built by _data/extract_hsc.py
+     from UAC's Report on the Scaling of the 2025 NSW HSC (Tables A3, A9 and 3.2).
+     With no table present the calculator still applies every rule and shows the
+     aggregate, and says on screen that the ATAR cannot be estimated. -->
+<div class="hsc-calc" data-hsc-calc>
+  <style>
+  .hsc-calc{--hc-ink:#17202a;--hc-mut:#5b6b7c;--hc-line:#dfe5ec;--hc-accent:#1b3a6b;--hc-bg:#f7f9fc;font-family:inherit;color:var(--hc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .hsc-calc *{box-sizing:border-box}
+  .hsc-calc h3{font-size:1.05rem;margin:1.4em 0 .5em;font-weight:700}
+  .hsc-calc .hc-row{display:grid;grid-template-columns:1fr 92px 92px 36px;gap:8px;align-items:center;margin-bottom:8px}
+  .hsc-calc .hc-row input,.hsc-calc .hc-row select{width:100%;padding:9px 10px;border:1px solid var(--hc-line);border-radius:6px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--hc-ink)}
+  .hsc-calc .hc-head{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--hc-mut);font-weight:600}
+  .hsc-calc .hc-del{background:none;border:1px solid var(--hc-line);border-radius:6px;cursor:pointer;padding:8px 0;color:var(--hc-mut);font-size:1rem;line-height:1}
+  .hsc-calc .hc-btn{background:var(--hc-accent);color:#fff;border:0;border-radius:6px;padding:11px 20px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .hsc-calc .hc-btn.ghost{background:none;color:var(--hc-accent);border:1px solid var(--hc-line);font-weight:500}
+  .hsc-calc .hc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .hsc-calc .hc-hint{font-size:.83rem;color:var(--hc-mut);margin:4px 0 14px}
+  .hsc-calc .hc-units{font-size:.83rem;color:var(--hc-mut);margin:10px 0 0;font-weight:600}
+  .hsc-calc .hc-units.over{color:#c0392b}
+  .hsc-calc .hc-out{margin-top:22px;padding:18px;background:var(--hc-bg);border:1px solid var(--hc-line);border-radius:8px}
+  .hsc-calc .hc-out[hidden]{display:none}
+  .hsc-calc .hc-atar{font-size:2.6rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .hsc-calc .hc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:700;margin-left:10px}
+  .hsc-calc .hc-agg{color:var(--hc-mut);font-size:.95rem;margin-top:4px}
+  .hsc-calc .hc-work{margin-top:16px;border-top:1px solid var(--hc-line);padding-top:14px}
+  .hsc-calc .hc-work table{width:100%;border-collapse:collapse;font-size:.9rem}
+  .hsc-calc .hc-work th,.hsc-calc .hc-work td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--hc-line)}
+  .hsc-calc .hc-work th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--hc-mut)}
+  .hsc-calc .hc-work td:last-child,.hsc-calc .hc-work th:last-child{text-align:right;font-variant-numeric:tabular-nums}
+  .hsc-calc .hc-work td:nth-child(2),.hsc-calc .hc-work th:nth-child(2){text-align:center}
+  .hsc-calc .hc-tag{display:inline-block;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border-radius:99px;background:#e4ecf8;color:#1b3a6b;font-weight:600;margin-left:6px}
+  .hsc-calc .hc-tag.eng{background:#e3f2e8;color:#1d6b3a}
+  .hsc-calc .hc-tag.drop{background:#eceff3;color:#5b6b7c}
+  .hsc-calc .hc-note{font-size:.85rem;color:var(--hc-mut);margin-top:12px}
+  .hsc-calc .hc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  .hsc-calc .hc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  @media(max-width:560px){.hsc-calc .hc-row{grid-template-columns:1fr 72px 76px 32px;gap:6px}.hsc-calc .hc-row input,.hsc-calc .hc-row select{padding:8px 7px;font-size:.86rem}.hsc-calc .hc-atar{font-size:2.1rem}}
+  </style>
+
+  <div class="hc-row hc-head"><span>Course</span><span>Units</span><span>HSC mark</span><span></span></div>
+  <div class="hc-list"></div>
+  <p class="hc-units">Units entered: <span class="hc-unitcount">0</span></p>
+  <p class="hc-hint">Enter your <strong>HSC mark</strong> as NESA reports it &mdash; out of 100 for a 2-unit course, out of 50 for a 1-unit Extension course. Your ATAR is built from your best <strong>10 units</strong>, which must include 2 units of English.</p>
+  <datalist id="hc-courses"></datalist>
+  <div class="hc-actions">
+    <button type="button" class="hc-btn ghost hc-add">+ Add course</button>
+    <button type="button" class="hc-btn hc-go">Estimate my ATAR</button>
+  </div>
+  <div class="hc-err"></div>
+
+  <div class="hc-out" hidden>
+    <div class="hc-atar"></div>
+    <div class="hc-agg"></div>
+    <div class="hc-work">
+      <h3 style="margin-top:0">How this estimate was built</h3>
+      <table><thead><tr><th>Course</th><th>Units counted</th><th>Scaled</th></tr></thead><tbody class="hc-work-body"></tbody></table>
+      <p class="hc-note hc-work-note"></p>
+    </div>
+    <div class="hc-modelnote"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var TOTAL_UNITS = 10;
+  var ENGLISH_UNITS = 2;
+  // Note: there is NO cap on calculus-maths units. The Adv/Ext1/Ext2 rule below
+  // produces 4 units as a consequence, not as a separate limit.
+  // Note: the Category B two-unit limit was REMOVED from 2025 onwards
+  // (UAC Technical Report, Oct 2025, s2.3.4), so it is not implemented.
+
+  function table(){
+    var all = window.HSC_SCALING_TABLE || {};
+    var y = window.HSC_SCALING_YEAR || '2025';
+    return all[y] || all[Object.keys(all)[0]] || null;
+  }
+
+  function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+  // piecewise-linear interpolation over ascending x anchors
+  function interp(x, xs, ys){
+    if(x <= xs[0]) return ys[0];
+    if(x >= xs[xs.length-1]) return ys[ys.length-1];
+    for(var i=0;i<xs.length-1;i++){
+      if(x <= xs[i+1]){
+        var t = (x - xs[i]) / (xs[i+1] - xs[i]);
+        return ys[i] + t * (ys[i+1] - ys[i]);
+      }
+    }
+    return ys[ys.length-1];
+  }
+
+  var NORM_INDEX = null;
+  function courseInfo(name){
+    var t = table();
+    if(!t) return null;
+    if(!t.courses) return null;
+    if(t.courses[name]) return t.courses[name];
+    // fall back to a normalised match so the "and" spelling, the ampersand
+    // spelling and the bare "design technology" form all resolve
+    if(!NORM_INDEX){
+      NORM_INDEX = {};
+      Object.keys(t.courses).forEach(function(k){ NORM_INDEX[norm(k)] = t.courses[k]; });
+    }
+    return NORM_INDEX[norm(name)] || null;
+  }
+
+  // Returns scaled mark PER UNIT (0 to 50) from the reported HSC mark.
+  // UAC Table A3 is published on a ONE-UNIT basis: both the HSC and the scaled
+  // columns run 0 to 50. A 2-unit course reported out of 100 therefore has to be
+  // halved before interpolating, and a 1-unit extension course reported out of 50
+  // is already on the right scale.
+  function perUnitScaled(name, hscMark, units){
+    var c = courseInfo(name);
+    if(!c) return null;
+    if(!c.raw) return null;
+    return interp(hscMark / units, c.raw, c.scaled);
+  }
+
+  function modelAtar(agg){
+    var t = table();
+    var m = (t || {}).model;
+    if(!m) return null;
+    var xs = m.anchors.map(function(a){ return a[0]; });
+    var ys = m.anchors.map(function(a){ return a[1]; });
+    var v, extrapolated = false;
+    if(agg < xs[0]){
+      // Below UAC's lowest published aggregate. interp() would clamp and report
+      // the floor anchor's ATAR, which is far too generous, so extend the slope
+      // of the two lowest anchors downward instead and flag it.
+      extrapolated = true;
+      var slope = (ys[1] - ys[0]) / (xs[1] - xs[0]);
+      v = ys[0] - (xs[0] - agg) * slope;
+    } else {
+      v = interp(agg, xs, ys);
+    }
+    if(v > m.cap_atar) v = m.cap_atar;
+    if(v < m.floor_atar) v = m.floor_atar;
+    return {atar:v, band:m.band, floor:m.floor_atar, cap:m.cap_atar,
+            extrapolated:extrapolated, lowest:xs[0]};
+  }
+
+  function familyOf(name){
+    var c = courseInfo(name);
+    if(c){ if(c.family) return c.family; }
+    var n = name.toLowerCase();
+    if(n.indexOf('english') >= 0) return 'english';
+    if(n.indexOf('math') >= 0) return 'maths';
+    return null;
+  }
+
+  // calculus-based maths: Advanced, Extension 1, Extension 2.
+  // Standard and Life Skills maths are NOT calculus-based.
+  // "Mathematics" alone is the pre-2019 name for Mathematics Advanced.
+  function calcMaths(name){
+    var n = name.toLowerCase();
+    if(n.indexOf('math') < 0) return null;
+    if(n.indexOf('standard') >= 0) return null;
+    if(n.indexOf('general') >= 0) return null;
+    if(n.indexOf('life skills') >= 0) return null;
+    if(n.indexOf('extension 2') >= 0) return 'ext2';
+    if(n.indexOf('extension 1') >= 0) return 'ext1';
+    return 'adv';
+  }
+
+  // Which 2-unit course an extension course sits on top of.
+  // UAC Technical Report Oct 2025, s3.3: extension marks are ignored when the
+  // corresponding 2-unit course was not satisfactorily completed. Mathematics
+  // Extension 2 additionally needs Extension 1; English Extension 2 needs both
+  // English Advanced and English Extension 1.
+  function extensionOf(name){
+    var n = name.toLowerCase();
+    if(n.indexOf('extension') < 0) return null;
+    if(n.indexOf('math') >= 0){
+      if(n.indexOf('extension 2') >= 0) return ['Mathematics Advanced', 'Mathematics Extension 1'];
+      return ['Mathematics Advanced'];
+    }
+    if(n.indexOf('english') >= 0){
+      if(n.indexOf('extension 2') >= 0) return ['English Advanced', 'English Extension 1'];
+      return ['English Advanced'];
+    }
+    if(n.indexOf('history') >= 0) return ['Modern History', 'Ancient History'];
+    if(n.indexOf('science') >= 0) return ['Biology', 'Chemistry', 'Physics', 'Earth and Environmental Science', 'Investigating Science'];
+    if(n.indexOf('music') >= 0) return ['Music 1', 'Music 2'];
+    // languages: Extension sits on the Continuers course.
+    // Built with string operations, not a regex, to keep the file backslash-free.
+    var cut = n.indexOf('extension');
+    var stem = cut > 0 ? name.substring(0, cut) : name;
+    while(stem.length > 0){
+      if(stem.charAt(stem.length - 1) !== ' ') break;
+      stem = stem.substring(0, stem.length - 1);
+    }
+    return [stem + ' Continuers'];
+  }
+
+  function norm(s){
+    // Everything that is not a letter or digit becomes a space, which already
+    // folds the ampersand spelling into the "and" spelling once the connective
+    // is dropped below. Deliberately no literal ampersand anywhere in this file.
+    var n = s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    // drop the connective so "design and technology" and "design technology" agree
+    n = n.split(' ').filter(function(w){ return w !== 'and'; }).join(' ');
+    // pre-2019 names students and older reports still use
+    if(n === 'mathematics') return 'mathematics advanced';
+    if(n === 'mathematics general 2') return 'mathematics standard 2';
+    if(n === 'esl') return 'english eal d';
+    if(n === 'pdh pe') return 'pdhpe';
+    if(n === 'senior science') return 'investigating science';
+    return n;
+  }
+
+  function init(root){
+    if(!root || root.getAttribute('data-hc-init')) return;
+    root.setAttribute('data-hc-init','1');
+
+    var list = root.querySelector('.hc-list');
+    var errEl = root.querySelector('.hc-err');
+    var out = root.querySelector('.hc-out');
+    var dl = root.querySelector('#hc-courses');
+    var unitEl = root.querySelector('.hc-unitcount');
+    var unitWrap = root.querySelector('.hc-units');
+
+    var t = table();
+    if(t){ if(t.courses){
+      Object.keys(t.courses).sort().forEach(function(name){
+        var o = document.createElement('option');
+        o.value = name; dl.appendChild(o);
+      });
+    } }
+
+    function tallyUnits(){
+      var n = 0;
+      Array.prototype.forEach.call(list.children, function(r){
+        if(r.children[2].value.trim() === '') return;
+        n += parseInt(r.children[1].value, 10) || 0;
+      });
+      unitEl.textContent = n;
+      if(n < TOTAL_UNITS){
+        unitWrap.classList.add('over');
+      } else {
+        unitWrap.classList.remove('over');
+      }
+    }
+
+    function addRow(preset){
+      var d = document.createElement('div');
+      d.className = 'hc-row';
+      d.innerHTML =
+        '<input type="text" list="hc-courses" placeholder="e.g. English Advanced">' +
+        '<select><option value="2">2 units</option><option value="1">1 unit</option></select>' +
+        '<input type="number" min="0" max="100" step="0.01" placeholder="mark">' +
+        '<button type="button" class="hc-del" aria-label="Remove">&times;</button>';
+
+      var nameEl = d.children[0], unitsEl = d.children[1], markEl = d.children[2];
+
+      function syncUnits(){
+        var c = courseInfo(nameEl.value.trim());
+        if(c){ if(c.units){ unitsEl.value = String(c.units); } }
+        markEl.max = unitsEl.value === '1' ? 50 : 100;
+        markEl.placeholder = unitsEl.value === '1' ? 'mark /50' : 'mark /100';
+        tallyUnits();
+      }
+      nameEl.addEventListener('change', syncUnits);
+      nameEl.addEventListener('input', tallyUnits);
+      unitsEl.addEventListener('change', syncUnits);
+      markEl.addEventListener('input', tallyUnits);
+      d.children[3].addEventListener('click', function(){
+        if(list.children.length > 1){ d.parentNode.removeChild(d); tallyUnits(); }
+      });
+
+      if(preset){ nameEl.value = preset; }
+      list.appendChild(d);
+      syncUnits();
+    }
+    addRow('English Advanced');
+    for(var i=0;i<4;i++) addRow();
+    root.querySelector('.hc-add').addEventListener('click', function(){ addRow(); });
+
+    function read(){
+      var courses=[], err=null;
+      Array.prototype.forEach.call(list.children, function(r){
+        var name = r.children[0].value.trim();
+        var units = parseInt(r.children[1].value, 10) || 2;
+        var v = r.children[2].value.trim();
+        if(!v) return;
+        var mark = parseFloat(v);
+        var ceiling = units === 1 ? 50 : 100;
+        if(isNaN(mark) || mark < 0 || mark > ceiling){
+          err = 'A ' + units + '-unit course takes an HSC mark from 0 to ' + ceiling + '.';
+          return;
+        }
+        var pu = perUnitScaled(name, mark, units);
+        var matched = pu !== null;
+        if(!matched){
+          // manual mode: treat the entry as a scaled mark already
+          pu = mark / units;
+        }
+        var ci = courseInfo(name || '');
+        var isSparse = false, cohortSize = null;
+        if(ci){
+          if(ci.sparse){ isSparse = true; }
+          if(ci.cohort){ cohortSize = ci.cohort; }
+        }
+        courses.push({
+          name: name || 'Unnamed course',
+          units: units,
+          mark: mark,
+          perUnit: pu,
+          matched: matched,
+          sparse: isSparse,
+          cohort: cohortSize,
+          family: familyOf(name || ''),
+          cm: calcMaths(name || '')
+        });
+      });
+      return {courses:courses, err:err};
+    }
+
+    root.querySelector('.hc-go').addEventListener('click', function(){
+      errEl.textContent = '';
+      var warns = [];
+      var r = read();
+      if(r.err){ errEl.textContent = r.err; out.hidden = true; return; }
+      if(r.courses.length === 0){ errEl.textContent = 'Enter at least one course and its HSC mark.'; out.hidden = true; return; }
+
+      var courses = r.courses.slice();
+
+      // UAC Technical Report Oct 2025, s3.3 — extension prerequisites.
+      // An extension course is ignored unless its underlying 2-unit course was
+      // completed; Maths Ext 2 also needs Ext 1, English Ext 2 needs Adv and Ext 1.
+      var present = {};
+      courses.forEach(function(c){ present[norm(c.name)] = true; });
+      var ignored = [];
+      courses = courses.filter(function(c){
+        var need = extensionOf(c.name);
+        if(!need) return true;
+        var ok;
+        if(c.cm === 'ext2'){
+          // Maths Ext 2: needs BOTH Advanced and Ext 1
+          ok = need.every(function(p){ return present[norm(p)]; });
+        } else if(norm(c.name).indexOf('english extension 2') >= 0){
+          ok = need.every(function(p){ return present[norm(p)]; });
+        } else {
+          // every other extension: any one of the listed parent courses will do
+          ok = need.some(function(p){ return present[norm(p)]; });
+        }
+        var both = false;
+        if(c.cm === 'ext2') both = true;
+        if(norm(c.name).indexOf('english extension 2') >= 0) both = true;
+        if(!ok){ ignored.push({name:c.name, need:need, both:both}); return false; }
+        return true;
+      });
+      ignored.forEach(function(x){
+        warns.push(x.name + ' has been ignored. UAC does not count an extension course unless the course it builds on was also completed (' + x.need.join(x.both ? ' and ' : ' or ') + ').');
+      });
+
+      // UAC maths rule, s3.3: a student who completed Mathematics Advanced and
+      // Extension 1 and then Extension 2 has Extension 1 and 2 counted, Advanced
+      // ignored, AND the unit value of Extension 1 raised from 1 to 2.
+      var has = {};
+      courses.forEach(function(c){ if(c.cm) has[c.cm] = true; });
+      var advDropped = false, ext1Promoted = false;
+      if(has.adv){ if(has.ext1){ if(has.ext2){
+        courses = courses.filter(function(c){
+          if(c.cm === 'adv'){ advDropped = true; return false; }
+          return true;
+        });
+        courses.forEach(function(c){
+          if(c.cm === 'ext1'){ c.units = 2; ext1Promoted = true; }
+        });
+      } } }
+
+      // Explode into individual units so the best 10 can split a course.
+      var pool = [];
+      courses.forEach(function(c){
+        for(var u=0; u<c.units; u++) pool.push(c);
+      });
+      pool.sort(function(a,b){ return b.perUnit - a.perUnit; });
+
+      var totalUnits = pool.length;
+      var countedUnits = {};   // course name -> units counted
+      var takenEnglish = 0, taken = 0;
+
+      function take(c){
+        countedUnits[c.name] = (countedUnits[c.name] || 0) + 1;
+        taken++;
+        if(c.family === 'english') takenEnglish++;
+      }
+
+      // 1. Two units of English always count, highest-scaled English first.
+      var englishPool = pool.filter(function(c){ return c.family === 'english'; });
+      for(var i=0; i<englishPool.length; i++){
+        if(takenEnglish >= ENGLISH_UNITS) break;
+        take(englishPool[i]);
+      }
+      if(takenEnglish < ENGLISH_UNITS){
+        warns.push('An ATAR requires at least 2 units of English. You entered ' + takenEnglish + ', so this is a partial estimate and would not produce an ATAR in practice.');
+      }
+
+      // 2. Best 8 remaining units.
+      var usedEnglish = 0;
+      pool.forEach(function(c){
+        if(taken >= TOTAL_UNITS) return;
+        // skip the English units already taken in step 1
+        if(c.family === 'english'){
+          if(usedEnglish < takenEnglish){ usedEnglish++; return; }
+        }
+        take(c);
+      });
+
+      if(taken < TOTAL_UNITS){
+        warns.push('An ATAR is built from 10 units. Only ' + taken + ' of your units can count, so this aggregate is out of ' + (taken * 50) + ' rather than 500 and the ATAR below is a partial estimate.');
+      }
+      if(advDropped){
+        warns.push('You completed Mathematics Advanced, Extension 1 and Extension 2. UAC ignores Mathematics Advanced in that case and raises Mathematics Extension 1 from 1 unit to 2, which is what has been done here.');
+      }
+
+      // UAC eligibility, s2.3.3: at least 10 units of ATAR courses including at least
+      // 2 units of English, 3 Board Developed courses of 2 units or greater, 4 subjects.
+      var twoUnitCourses = courses.filter(function(c){ return c.units >= 2; }).length;
+      if(twoUnitCourses < 3){
+        warns.push('An ATAR also requires at least three courses of 2 units or greater. You entered ' + twoUnitCourses + '.');
+      }
+      if(courses.length < 4){
+        warns.push('An ATAR also requires at least four subjects. You entered ' + courses.length + '.');
+      }
+
+      var unmatched = courses.filter(function(c){ return !c.matched; });
+      if(unmatched.length){
+        if(table()){
+          warns.push('These courses are not in the scaling table, so the mark you entered was treated as an already-scaled mark: ' + unmatched.map(function(c){ return c.name; }).join(', ') + '.');
+        }
+      }
+
+      // Small-cohort courses (fewer than 40 students): UAC does not publish the
+      // usual percentile anchors for these, only the mean, SD and max. The scaled
+      // marks above are modelled from those three numbers rather than read off
+      // UAC's own percentile table, so treat this estimate as less reliable.
+      var sparse = courses.filter(function(c){
+        if(!c.matched) return false;
+        return c.sparse;
+      });
+      if(sparse.length){
+        warns.push("UAC does not publish a full scaling table for these small-cohort courses (fewer than 40 students sat them): " + sparse.map(function(c){ return c.name + (c.cohort ? ' (' + c.cohort + ' students)' : ''); }).join(', ') + ". Their scaled marks are modelled from the published mean and spread, not read off UAC's own percentile table like the rest of this estimate, so treat those rows as a rougher guide.");
+      }
+
+      // Aggregate
+      var agg = 0;
+      var rows = '';
+      var shown = {};
+      pool.forEach(function(c){
+        if(shown[c.name]) return;
+        shown[c.name] = true;
+        var cu = countedUnits[c.name] || 0;
+        agg += cu * c.perUnit;
+        var tag = '';
+        if(cu === 0){
+          tag = '<span class="hc-tag drop">Not counted</span>';
+        } else if(c.family === 'english'){
+          tag = '<span class="hc-tag eng">English</span>';
+        } else {
+          tag = '<span class="hc-tag">Counted</span>';
+        }
+        var how = c.matched
+          ? ('mark ' + c.mark.toFixed(0) + ' &rarr; scaled' + (c.sparse ? ' (modelled, small cohort)' : ''))
+          : ('entered as scaled');
+        rows += '<tr><td>' + esc(c.name) + tag + '<div style="font-size:.8rem;color:#5b6b7c">' + how + '</div></td><td>' + cu + ' of ' + c.units + '</td><td>' + (cu * c.perUnit).toFixed(2) + '</td></tr>';
+      });
+      if(advDropped){
+        rows += '<tr><td>Mathematics Advanced<span class="hc-tag drop">Excluded by UAC rule</span></td><td>0</td><td>&mdash;</td></tr>';
+      }
+      agg = Math.round(agg * 100) / 100;
+      rows += '<tr><td colspan="2"><strong>ATAR aggregate (' + taken + ' units, out of ' + (taken * 50) + ')</strong></td><td><strong>' + agg.toFixed(2) + '</strong></td></tr>';
+      root.querySelector('.hc-work-body').innerHTML = rows;
+
+      root.querySelector('.hc-work-note').textContent =
+        'Your ATAR aggregate is the sum of your scaled marks for your best 10 units, which must include 2 units of English. Each unit is worth up to 50 scaled marks, so the aggregate runs to 500. NESA never reports scaled marks to students, which is why they are estimated here.';
+
+      var aEl = root.querySelector('.hc-atar');
+      var gEl = root.querySelector('.hc-agg');
+      var mn = root.querySelector('.hc-modelnote');
+      var m = modelAtar(agg);
+
+      if(!m){
+        aEl.innerHTML = 'Aggregate ' + agg.toFixed(2);
+        gEl.innerHTML = '<span class="hc-warn">The NSW scaling data is not loaded on this page yet, so the ATAR cannot be estimated. The units that counted and the aggregate above are correct for the marks you entered.</span>';
+        mn.innerHTML = '';
+      } else {
+        var lo = Math.max(m.floor, m.atar - m.band);
+        var hi = Math.min(m.cap, m.atar + m.band);
+        if(m.atar <= m.floor){
+          aEl.innerHTML = 'ATAR 30.00 or less <span class="hc-est">Estimate</span>';
+          gEl.textContent = 'An aggregate of ' + agg.toFixed(2) + ' falls at or below the lowest reported ATAR. UAC reports anything in this range as "30 or less" rather than a number.';
+        } else {
+          aEl.innerHTML = 'ATAR ~' + m.atar.toFixed(2) + ' <span class="hc-est">Estimate</span>';
+          gEl.textContent = 'From an ATAR aggregate of ' + agg.toFixed(2) + ' out of 500. Likely range ' + lo.toFixed(2) + ' to ' + hi.toFixed(2) + '.';
+        }
+        var t2 = table() || {};
+        var vintage = t2.source ? (' Source: ' + esc(t2.source) + '.') : '';
+        mn.innerHTML = '<div class="hc-warn"><strong>Why this is an estimate.</strong> UAC publishes, for every course, the scaled mark at a handful of percentiles &mdash; not a mark-by-mark conversion. UAC&rsquo;s own note on that table says it &ldquo;should not be used as a simple HSC to scaled mark conversion table&rdquo;, because one HSC mark can come from a range of raw marks and so map to a range of scaled marks. The units that counted and the rules applied here are exact. The scaled marks are interpolated between UAC&rsquo;s published percentiles, and the ATAR comes from UAC&rsquo;s table of the lowest aggregate for each ATAR, which is why a range is shown rather than a single figure.' + vintage + '</div>';
+        if(t2.stale){
+          mn.innerHTML = '<div class="hc-warn"><strong>Old cohort data.</strong> ' + esc(t2.stale) + '</div>' + mn.innerHTML;
+        }
+      }
+
+      if(m){ if(m.extrapolated){
+        warns.push('An aggregate of ' + agg.toFixed(2) + ' is below the lowest aggregate UAC publishes (' + m.lowest.toFixed(1) + '), so the ATAR above is extrapolated past the end of the published table and is less reliable than the rest of this estimate.');
+      } }
+
+      if(warns.length){
+        gEl.innerHTML += '<div class="hc-warn">' + warns.map(esc).join('<br>') + '</div>';
+      }
+      out.hidden = false;
+    });
+
+    tallyUnits();
+  }
+
+  function boot(){
+    var nodes = document.querySelectorAll('[data-hsc-calc]');
+    for(var i=0;i<nodes.length;i++) init(nodes[i]);
+  }
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+</body>
+</html>

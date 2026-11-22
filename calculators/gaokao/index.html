@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaokao to ATAR Calculator</title>
+</head>
+<body>
+<!--
+  Gaokao to ATAR Calculator (unofficial estimate, built on UWA's published official table)
+  No literal ampersand characters anywhere below (WordPress mangles them inside script tags) --
+  use nested if statements instead of double-ampersand, and the word "and" instead of a
+  literal ampersand in text. No backslash escapes in strings -- use literal UTF-8 characters.
+  Data source: University of Western Australia, "Gao Kao (China)" international and overseas
+  qualifications conversion table (uwa.edu.au/study/how-to-apply/pathways-and-eligibility/
+  international-and-overseas-qualifications/gao-kao-china), accessed November 2026.
+-->
+<script>
+window.GAOKAO_ATAR_TABLE = {
+  "source": "University of Western Australia, Gao Kao (China) conversion table",
+  "source_url": "https://uwa.edu.au/study/How-to-apply/International-and-overseas-qualifications/gao-kao-china",
+  "percent": [65, 70, 72.5, 76, 82, 84, 86, 90],
+  "atar":    [70, 80, 85,   90, 94, 95, 96, 98]
+};
+</script>
+
+<div class="gk-calc" data-gk-calc>
+  <style>
+  .gk-calc{--gc-ink:#17202a;--gc-mut:#5b6b7c;--gc-line:#dfe5ec;--gc-accent:#8a1f3c;--gc-bg:#f7f9fc;font-family:inherit;color:var(--gc-ink);max-width:760px;margin:0 auto;line-height:1.5}
+  .gk-calc *{box-sizing:border-box}
+  .gk-calc .gc-tabs{display:flex;gap:6px;margin-bottom:14px}
+  .gk-calc .gc-tab{flex:1;padding:10px 8px;border:1px solid var(--gc-line);border-radius:6px;background:#fff;color:var(--gc-mut);font-weight:600;font-size:.9rem;cursor:pointer;text-align:center}
+  .gk-calc .gc-tab.active{background:var(--gc-accent);color:#fff;border-color:var(--gc-accent)}
+  .gk-calc .gc-row{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+  .gk-calc .gc-row label{font-size:.85rem;color:var(--gc-mut);min-width:170px}
+  .gk-calc .gc-row input,.gk-calc .gc-row select{flex:1;padding:10px 12px;border:1px solid var(--gc-line);border-radius:6px;font-size:1rem;font-family:inherit;background:#fff}
+  .gk-calc .gc-hint{font-size:.83rem;color:var(--gc-mut);margin:2px 0 14px}
+  .gk-calc .gc-btn{background:var(--gc-accent);color:#fff;border:0;border-radius:6px;padding:11px 22px;font-size:.95rem;font-weight:600;cursor:pointer;font-family:inherit}
+  .gk-calc .gc-err{color:#c0392b;font-size:.88rem;margin-top:10px}
+  .gk-calc .gc-out{margin-top:20px;padding:18px;background:var(--gc-bg);border:1px solid var(--gc-line);border-radius:8px}
+  .gk-calc .gc-out[hidden]{display:none}
+  .gk-calc .gc-atar{font-size:2.4rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+  .gk-calc .gc-est{display:inline-block;font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;vertical-align:middle;padding:3px 8px;border-radius:99px;background:#fbe9ef;color:#8a1f3c;font-weight:700;margin-left:10px}
+  .gk-calc .gc-sub{color:var(--gc-mut);font-size:.95rem;margin-top:4px}
+  .gk-calc .gc-work{margin-top:16px;border-top:1px solid var(--gc-line);padding-top:14px;font-size:.88rem;color:var(--gc-ink)}
+  .gk-calc .gc-work strong{color:var(--gc-accent)}
+  .gk-calc .gc-warn{display:block;background:#fff6e5;border:1px solid #f0d9a8;color:#7a5600;padding:11px 13px;border-radius:6px;font-size:.87rem;margin-top:12px}
+  @media(max-width:560px){.gk-calc .gc-row{flex-direction:column;align-items:stretch}.gk-calc .gc-row label{min-width:0}.gk-calc .gc-atar{font-size:2rem}}
+  </style>
+
+  <div class="gc-tabs">
+    <button type="button" class="gc-tab active" data-dir="gaokao-to-atar">Gaokao to ATAR</button>
+    <button type="button" class="gc-tab" data-dir="atar-to-gaokao">ATAR to Gaokao</button>
+  </div>
+
+  <div data-panel="gaokao-to-atar">
+    <div class="gc-row">
+      <label for="gc-gaokao-input">Your Gaokao overall score</label>
+      <input type="number" id="gc-gaokao-input" min="0" max="750" step="1" placeholder="e.g. 570">
+    </div>
+    <div class="gc-row">
+      <label for="gc-max-select">Your province's maximum score</label>
+      <select id="gc-max-select">
+        <option value="750" selected>750 (standard -- most provinces)</option>
+        <option value="660">660 (Shanghai)</option>
+        <option value="480">480 (legacy pre-2021 scale)</option>
+      </select>
+    </div>
+  </div>
+  <div class="gc-row" data-panel="atar-to-gaokao" hidden>
+    <label for="gc-atar-input">Target ATAR (70-98)</label>
+    <input type="number" id="gc-atar-input" min="70" max="98" step="0.05" placeholder="e.g. 90.00">
+  </div>
+  <p class="gc-hint">Built on the University of Western Australia's published Gao Kao conversion table. See &ldquo;How this estimate is built&rdquo; below -- other universities use different thresholds.</p>
+
+  <button type="button" class="gc-btn" data-gc-go>Estimate</button>
+  <div class="gc-err"></div>
+
+  <div class="gc-out" hidden>
+    <div class="gc-atar"></div>
+    <div class="gc-sub"></div>
+    <div class="gc-work"></div>
+    <div class="gc-warn">Estimate only, based on one university's (UWA) published table -- not an official, universal Gaokao-to-ATAR conversion. Sydney, UNSW, Monash, ANU, Adelaide, UQ and others accept the Gaokao directly for admission using their own percentage-of-provincial-maximum thresholds, which can be noticeably different from UWA's. Always check your target university's own international admissions page.</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  function el(sel, root){ return (root || document).querySelector(sel); }
+  function all(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+  function atarFromPercent(pct, percents, atars){
+    if(pct < percents[0]) return null;
+    if(pct >= percents[percents.length - 1]) return atars[atars.length - 1];
+    for(var i = 0; i < percents.length - 1; i++){
+      if(pct <= percents[i + 1]){
+        var t = (pct - percents[i]) / (percents[i + 1] - percents[i]);
+        return atars[i] + t * (atars[i + 1] - atars[i]);
+      }
+    }
+    return atars[atars.length - 1];
+  }
+
+  function percentFromAtar(target, percents, atars){
+    if(target <= atars[0]) return percents[0];
+    if(target >= atars[atars.length - 1]) return percents[percents.length - 1];
+    for(var i = 0; i < atars.length - 1; i++){
+      if(target <= atars[i + 1]){
+        var t = (target - atars[i]) / (atars[i + 1] - atars[i]);
+        return percents[i] + t * (percents[i + 1] - percents[i]);
+      }
+    }
+    return percents[percents.length - 1];
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var root = el('[data-gk-calc]');
+    if(!root) return;
+    var table = window.GAOKAO_ATAR_TABLE;
+    var percents = table.percent, atars = table.atar;
+    var dir = 'gaokao-to-atar';
+    var tabs = all('.gc-tab', root);
+    var panels = { 'gaokao-to-atar': el('[data-panel="gaokao-to-atar"]', root), 'atar-to-gaokao': el('[data-panel="atar-to-gaokao"]', root) };
+    var out = el('.gc-out', root);
+    var errBox = el('.gc-err', root);
+
+    tabs.forEach(function(tab){
+      tab.addEventListener('click', function(){
+        tabs.forEach(function(t){ t.classList.remove('active'); });
+        tab.classList.add('active');
+        dir = tab.getAttribute('data-dir');
+        panels['gaokao-to-atar'].hidden = (dir !== 'gaokao-to-atar');
+        panels['atar-to-gaokao'].hidden = (dir !== 'atar-to-gaokao');
+        out.hidden = true;
+        errBox.textContent = '';
+      });
+    });
+
+    el('[data-gc-go]', root).addEventListener('click', function(){
+      errBox.textContent = '';
+      out.hidden = true;
+
+      if(dir === 'gaokao-to-atar'){
+        var score = parseFloat(el('#gc-gaokao-input', root).value);
+        var maxScore = parseFloat(el('#gc-max-select', root).value);
+        if(isNaN(score)){ errBox.textContent = 'Enter your Gaokao overall score.'; return; }
+        if(score < 0){ errBox.textContent = 'Enter a score of 0 or higher.'; return; }
+        if(score > maxScore){ errBox.textContent = 'Your score cannot be higher than the selected maximum (' + maxScore + ').'; return; }
+        var pct = (score / maxScore) * 100;
+        var atarEst = atarFromPercent(pct, percents, atars);
+        if(atarEst === null){
+          el('.gc-atar', root).innerHTML = "Below UWA's published range";
+          el('.gc-sub', out).textContent = 'A score of ' + score + ' out of ' + maxScore + ' is ' + pct.toFixed(1) + "% -- below the lowest band (65%) on UWA's published table.";
+          el('.gc-work', out).innerHTML = "<strong>What this means:</strong> UWA's table does not publish an ATAR equivalent below 65% of the provincial maximum. Other universities, and foundation-year pathways, may still accept this score -- check directly with your target institution.";
+        } else {
+          var band = 3;
+          var lo = clamp(atarEst - band, 0, 99.95).toFixed(2);
+          var hi = clamp(atarEst + band, 0, 99.95).toFixed(2);
+          el('.gc-atar', root).innerHTML = atarEst.toFixed(2) + '<span class="gc-est">Indicative range ' + lo + '&ndash;' + hi + '</span>';
+          el('.gc-sub', out).textContent = 'Based on a Gaokao score of ' + score + ' out of ' + maxScore + ' (' + pct.toFixed(1) + '%).';
+          el('.gc-work', out).innerHTML =
+            '<strong>How we got this:</strong> ' + score + ' out of ' + maxScore + ' is <strong>' + pct.toFixed(1) +
+            "%</strong> of the provincial maximum. We look that percentage up on the University of Western Australia's own published Gao Kao conversion table and interpolate between its listed bands. " +
+            "Because this is one university's table, not a national standard, we widen it to a ±" + band + ' ATAR band -- other universities publish different thresholds for the same percentage.';
+        }
+      } else {
+        var atarVal = parseFloat(el('#gc-atar-input', root).value);
+        if(isNaN(atarVal)){ errBox.textContent = 'Enter a target ATAR.'; return; }
+        atarVal = clamp(atarVal, atars[0], atars[atars.length - 1]);
+        var pctEst = percentFromAtar(atarVal, percents, atars);
+        var score750 = Math.round((pctEst / 100) * 750);
+        var score660 = Math.round((pctEst / 100) * 660);
+        el('.gc-atar', root).innerHTML = pctEst.toFixed(1) + '%<span class="gc-est">of provincial maximum</span>';
+        el('.gc-sub', out).textContent = "For a target ATAR of " + atarVal.toFixed(2) + ", on UWA's table.";
+        el('.gc-work', out).innerHTML =
+          "<strong>How we got this:</strong> UWA's table maps an ATAR of " + atarVal.toFixed(2) + ' to roughly <strong>' + pctEst.toFixed(1) +
+          '%</strong> of the provincial maximum score -- that is approximately <strong>' + score750 + ' out of 750</strong> on the standard scale, or <strong>' + score660 +
+          ' out of 660</strong> for Shanghai. Other universities set their own, different thresholds for the same ATAR.';
+      }
+      out.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
